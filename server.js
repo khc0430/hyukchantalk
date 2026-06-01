@@ -1,205 +1,177 @@
-// server.js
 const express = require('express');
 const http = require('http');
-const socketIo = require('socket.io');
-const path = require('path');
+const { Server } = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server);
+const io = new Server(server);
 
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static('public'));
 
-// --- 데이터 저장소 (실제 서비스에서는 DB 사용 권장) ---
-const db = {
-    users: {}, // {userId: {pw, nick, status, img, likes: 0, guestbook: []}}
-    feeds: [], // [{id, authorId, authorNick, authorImg, content, img, likes: [], comments: []}]
-    globalMessages: [],
-    privateMessages: {}, // {"user1-user2": [{sender, text, time, read: false}]}
-    onlineUsers: new Set(),
-    socketToUser: {}
-};
+// 인메모리 데이터베이스 (서버가 켜져있는 동안 유지)
+const users = {}; // { id: { pw, nickname, status, photo, online, socketId } }
+const posts = []; // { id, authorId, content, image, likes:[], comments:[] }
+const globalChat = []; // { id, authorId, text, time }
+const privateChats = {}; // 'user1_user2': [ { authorId, text, time, read } ]
 
-// 시간 설정 (KST)
+// 🕒 대한민국 시간(KST) 생성 함수
 const getKST = () => {
-    const now = new Date();
-    const kst = new Date(now.getTime() + (9 * 60 * 60 * 1000));
-    return kst;
+    return new Date().toLocaleTimeString('ko-KR', { 
+        timeZone: 'Asia/Seoul', hour12: true, hour: '2-digit', minute:'2-digit' 
+    });
 };
+
+// 1:1 채팅방 고유 ID 생성 (알파벳 순 정렬로 항상 같은 방 ID 도출)
+const getRoomId = (id1, id2) => [id1, id2].sort().join('_');
 
 io.on('connection', (socket) => {
-    console.log('New connection:', socket.id);
+    
+    // [회원가입 및 로그인]
+    socket.on('auth', ({ type, id, pw, nickname }) => {
+        if (type === 'register') {
+            if (users[id]) return socket.emit('authResult', { success: false, msg: '이미 존재하는 아이디입니다냥!' });
+            users[id] = { pw, nickname: nickname || id, status: '', photo: '', online: true, socketId: socket.id };
+            socket.userId = id;
+            socket.emit('authResult', { success: true, isNew: true, user: users[id], globalChat });
+            io.emit('updateUserList', getUsersExcept(id));
+        } else if (type === 'login') {
+            const user = users[id];
+            if (!user || user.pw !== pw) return socket.emit('authResult', { success: false, msg: '아이디나 비번이 틀렸다냥!' });
+            user.online = true;
+            user.socketId = socket.id;
+            socket.userId = id;
+            socket.emit('authResult', { success: true, isNew: false, user, globalChat, posts });
+            io.emit('updateUserList', getUsersExcept(id));
+        }
+    });
 
-    // 1. 로그인/회원가입
-    socket.on('auth', ({ type, id, pw, nick }) => {
-        if (type === 'signup') {
-            if (db.users[id]) return socket.emit('auth_res', { success: false, msg: '이미 존재하는 아이디야! 야옹!' });
-            db.users[id] = { 
-                pw, nick, 
-                status: '안녕! 반가워!', 
-                img: 'https://cdn-icons-png.flaticon.com/512/6915/6915987.png', // 기본 고양이 이콘
-                likes: 0, 
-                guestbook: [],
-                joined: getKST(),
-                isFirst: true
-            };
-            socket.emit('auth_res', { success: true, user: {id, ...db.users[id]}, isNew: true });
-        } else {
-            const user = db.users[id];
-            if (user && user.pw === pw) {
-                user.isFirst = false;
-                socket.emit('auth_res', { success: true, user: {id, ...user}, isNew: false });
-            } else {
-                socket.emit('auth_res', { success: false, msg: '아이디나 비번이 틀렸어! 냐앙..' });
+    // 유저 리스트 조회 헬퍼
+    const getUsersExcept = (exceptId) => {
+        return Object.keys(users).filter(k => k !== exceptId).map(k => ({
+            id: k, nickname: users[k].nickname, status: users[k].status, photo: users[k].photo, online: users[k].online
+        }));
+    };
+
+    socket.on('requestUserList', () => {
+        if (socket.userId) socket.emit('updateUserList', getUsersExcept(socket.userId));
+    });
+
+    socket.on('requestPosts', () => socket.emit('updatePosts', posts));
+
+    // [프로필 업데이트]
+    socket.on('updateProfile', (data) => {
+        if (!socket.userId) return;
+        users[socket.userId].nickname = data.nickname;
+        users[socket.userId].status = data.status;
+        users[socket.userId].photo = data.photo;
+        socket.emit('profileUpdated', users[socket.userId]);
+        io.emit('updateUserList', getUsersExcept(socket.userId));
+    });
+
+    // [게시물 & 소통 트리]
+    socket.on('createPost', (data) => {
+        const post = { id: Date.now(), authorId: socket.userId, content: data.content, image: data.image, likes: [], comments: [] };
+        posts.unshift(post);
+        io.emit('updatePosts', posts);
+    });
+
+    socket.on('likePost', (postId) => {
+        const post = posts.find(p => p.id === postId);
+        if (post) {
+            if (!post.likes.includes(socket.userId)) {
+                post.likes.push(socket.userId);
+                io.emit('updatePosts', posts);
+                if(post.authorId !== socket.userId && users[post.authorId]?.online) {
+                    io.to(users[post.authorId].socketId).emit('notification', { msg: `${users[socket.userId].nickname}님이 게시글을 좋아합니다냥!🐾`, target: 'feed' });
+                }
             }
         }
     });
 
-    // 2. 온라인 상태 관리
-    socket.on('login_success', (userId) => {
-        socket.userId = userId;
-        db.onlineUsers.add(userId);
-        db.socketToUser[socket.id] = userId;
-        io.emit('update_user_list', {
-            users: Object.keys(db.users).map(id => ({
-                id,
-                nick: db.users[id].nick,
-                status: db.users[id].status,
-                img: db.users[id].img,
-                isOnline: db.onlineUsers.has(id)
-            }))
-        });
-    });
-
-    // 3. 피드 및 프로필 기능
-    socket.on('update_profile', (data) => {
-        const user = db.users[socket.userId];
-        if(user) {
-            user.nick = data.nick;
-            user.status = data.status;
-            user.img = data.img;
-            io.emit('refresh_data'); // 전체 데이터 갱신 알림
-        }
-    });
-
-    socket.on('post_feed', (data) => {
-        const user = db.users[socket.userId];
-        const newFeed = {
-            id: Date.now(),
-            authorId: socket.userId,
-            authorNick: user.nick,
-            authorImg: user.img,
-            content: data.content,
-            img: data.img,
-            likes: [],
-            comments: [],
-            time: getKST()
-        };
-        db.feeds.unshift(newFeed);
-        io.emit('feed_update', db.feeds);
-    });
-
-    // 트리형 댓글 로직 (대댓글)
-    socket.on('add_comment', ({ feedId, text, parentId = null }) => {
-        const feed = db.feeds.find(f => f.id === feedId);
-        if (feed) {
-            const comment = {
-                id: Date.now(),
-                authorId: socket.userId,
-                authorNick: db.users[socket.userId].nick,
-                text,
-                parentId,
-                time: getKST()
-            };
-            feed.comments.push(comment);
-            io.emit('feed_update', db.feeds);
-            
-            // 알림 보내기
-            if (feed.authorId !== socket.userId) {
-                io.to(getSocketByUserId(feed.authorId)).emit('noti', {
-                    msg: `${db.users[socket.userId].nick}님이 네 피드에 댓글을 달았어!`,
-                    target: 'feed'
-                });
+    socket.on('commentPost', ({ postId, text, parentId }) => {
+        const post = posts.find(p => p.id === postId);
+        if (post) {
+            post.comments.push({ id: Date.now(), authorId: socket.userId, text, parentId, time: getKST() });
+            io.emit('updatePosts', posts);
+            if(post.authorId !== socket.userId && users[post.authorId]?.online) {
+                io.to(users[post.authorId].socketId).emit('notification', { msg: `${users[socket.userId].nickname}님이 댓글을 남겼다냥!💬`, target: 'feed' });
             }
         }
     });
 
-    // 4. 채팅 시스템
-    // 전체 채팅
-    socket.on('send_global', (text) => {
-        const msg = {
-            senderId: socket.userId,
-            senderNick: db.users[socket.userId].nick,
-            senderImg: db.users[socket.userId].img,
-            text,
-            time: getKST()
-        };
-        db.globalMessages.push(msg);
-        io.emit('receive_global', msg);
+    // [전체 채팅]
+    socket.on('sendGlobalMsg', (text) => {
+        const msg = { id: Date.now(), authorId: socket.userId, nickname: users[socket.userId].nickname, text, time: getKST() };
+        globalChat.push(msg);
+        io.emit('newGlobalMsg', msg);
     });
 
-    // 1:1 채팅방 입장 및 읽음 처리
-    socket.on('join_private', (targetId) => {
-        const roomKey = [socket.userId, targetId].sort().join('-');
-        socket.join(roomKey);
-        socket.currentRoom = roomKey;
-
-        if (!db.privateMessages[roomKey]) db.privateMessages[roomKey] = [];
+    // [1:1 채팅]
+    socket.on('joinPrivate', (targetId) => {
+        const roomId = getRoomId(socket.userId, targetId);
+        if (!privateChats[roomId]) privateChats[roomId] = [];
         
-        // 내가 들어온 순간 상대방이 보낸 메시지 모두 '읽음' 처리
-        db.privateMessages[roomKey].forEach(m => {
-            if (m.sender !== socket.userId) m.read = true;
+        // 상대방이 보낸 메시지 모두 '읽음' 처리
+        privateChats[roomId].forEach(m => {
+            if (m.authorId === targetId) m.read = true;
         });
-
-        socket.emit('private_history', db.privateMessages[roomKey]);
-        io.to(roomKey).emit('read_update', { userId: socket.userId });
-    });
-
-    socket.on('send_private', ({ targetId, text }) => {
-        const roomKey = [socket.userId, targetId].sort().join('-');
-        const msg = {
-            sender: socket.userId,
-            text,
-            time: getKST(),
-            read: false
-        };
-
-        // 상대방이 방에 있는지 확인
-        const targetSocketId = getSocketByUserId(targetId);
-        const targetSocket = io.sockets.sockets.get(targetSocketId);
-        if (targetSocket && targetSocket.currentRoom === roomKey) {
-            msg.read = true;
-        }
-
-        db.privateMessages[roomKey].push(msg);
-        io.to(roomKey).emit('receive_private', msg);
-
-        // 알림 및 뱃지 업데이트
-        if (!msg.read) {
-            io.to(targetSocketId).emit('noti', {
-                msg: `${db.users[socket.userId].nick}님에게 비밀 메시지가 왔어!`,
-                target: 'chat_list',
-                from: socket.userId
-            });
+        
+        socket.join(roomId);
+        socket.emit('loadPrivateChat', { targetId, messages: privateChats[roomId] });
+        
+        // 상대방에게 내가 읽었음을 실시간 알림
+        if (users[targetId] && users[targetId].online) {
+            io.to(users[targetId].socketId).emit('privateRead', { roomId, readerId: socket.userId });
         }
     });
 
-    // 입력 중... 표시
+    socket.on('sendPrivateMsg', ({ targetId, text }) => {
+        const roomId = getRoomId(socket.userId, targetId);
+        const msg = { id: Date.now(), authorId: socket.userId, text, time: getKST(), read: false };
+        if (!privateChats[roomId]) privateChats[roomId] = [];
+        privateChats[roomId].push(msg);
+
+        // 내 방과 상대방 방에 메시지 전송
+        io.to(roomId).emit('newPrivateMsg', { roomId, msg, targetId });
+        socket.emit('newPrivateMsg', { roomId, msg, targetId });
+
+        // 상대방이 오프라인이거나 다른 탭에 있을 때 알림
+        if (users[targetId] && users[targetId].online) {
+            io.to(users[targetId].socketId).emit('notification', { msg: `${users[socket.userId].nickname}님이 귓속말을 보냈다냥!💌`, target: 'friends', senderId: socket.userId });
+        }
+    });
+
+    socket.on('markAsRead', ({ targetId }) => {
+        const roomId = getRoomId(socket.userId, targetId);
+        if (privateChats[roomId]) {
+            privateChats[roomId].forEach(m => { if (m.authorId === targetId) m.read = true; });
+            if (users[targetId] && users[targetId].online) {
+                io.to(users[targetId].socketId).emit('privateRead', { roomId, readerId: socket.userId });
+            }
+        }
+    });
+
+    // [입력 중 상태 (Typing Indicator)]
     socket.on('typing', ({ targetId, isTyping }) => {
-        const roomKey = targetId === 'global' ? 'global' : [socket.userId, targetId].sort().join('-');
-        socket.to(roomKey).emit('display_typing', { userId: socket.userId, nick: db.users[socket.userId].nick, isTyping });
+        const nickname = users[socket.userId].nickname;
+        if (targetId === 'global') {
+            socket.broadcast.emit('userTyping', { targetId: 'global', nickname, isTyping });
+        } else {
+            const targetUser = users[targetId];
+            if (targetUser && targetUser.online) {
+                io.to(targetUser.socketId).emit('userTyping', { targetId: socket.userId, nickname, isTyping });
+            }
+        }
     });
 
+    // 연결 해제
     socket.on('disconnect', () => {
-        db.onlineUsers.delete(socket.userId);
-        delete db.socketToUser[socket.id];
-        io.emit('update_user_list', { /* 위와 동일한 리스트 생성 로직 */ });
+        if (socket.userId && users[socket.userId]) {
+            users[socket.userId].online = false;
+            io.emit('updateUserList', getUsersExcept(socket.userId));
+        }
     });
-
-    function getSocketByUserId(userId) {
-        return Object.keys(db.socketToUser).find(key => db.socketToUser[key] === userId);
-    }
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Cat Paradise Server running on port ${PORT}`));
+server.listen(PORT, () => console.log(`😻 혁찬톡 고양이 서버가 ${PORT} 포트에서 갸르릉 거립니다!`));
