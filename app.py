@@ -79,7 +79,7 @@ def register():
         password = request.form.get('password')
         if User.query.get(user_id):
             return '<script>alert("이미 존재하는 아이디입니다."); history.back();</script>'
-        
+
         new_user = User(
             id=user_id,
             password=generate_password_hash(password),
@@ -94,7 +94,7 @@ def register():
 def update_profile():
     my_id = session.get('user_id')
     if not my_id: return jsonify({'error': 'Unauthorized'}), 401
-    
+
     user = User.query.get(my_id)
     user.name = request.form.get('name', user.name)
     user.status_msg = request.form.get('status_msg', user.status_msg)
@@ -107,7 +107,7 @@ def update_profile():
             file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(file_path)
             user.profile_pic = f'/static/uploads/{filename}'
-    
+
     db.session.commit()
     return jsonify({'success': True})
 
@@ -118,7 +118,7 @@ def status_api():
     my_id = session.get('user_id')
     return jsonify([
         {
-            'id': u.id, 
+            'id': u.id,
             'name': u.name,
             'status_msg': u.status_msg,
             'profile_pic': u.profile_pic,
@@ -154,7 +154,7 @@ def on_send_global(data):
     new_msg = Message(sender_id=uid, text=data['text'])
     db.session.add(new_msg)
     db.session.commit()
-    
+
     emit('new_message', {
         'user': uid,
         'name': user.name,
@@ -169,13 +169,13 @@ def on_join_private(data):
     target_id = data['target_id']
     room = "-".join(sorted([my_id, target_id]))
     join_room(room)
-    
+
     # Load history
     messages = Message.query.filter(
         ((Message.sender_id == my_id) & (Message.receiver_id == target_id)) |
         ((Message.sender_id == target_id) & (Message.receiver_id == my_id))
     ).order_by(Message.timestamp.desc()).limit(50).all()
-    
+
     msg_list = [{
         'from': m.sender_id,
         'to': m.receiver_id,
@@ -189,11 +189,11 @@ def on_send_private(data):
     my_id = session.get('user_id')
     target_id = data['target_id']
     room = "-".join(sorted([my_id, target_id]))
-    
+
     new_msg = Message(sender_id=my_id, receiver_id=target_id, text=data['text'])
     db.session.add(new_msg)
     db.session.commit()
-    
+
     emit('new_message', {
         'from': my_id,
         'to': target_id,
@@ -201,7 +201,8 @@ def on_send_private(data):
         'time': datetime.utcnow().strftime('%H:%M')
     }, room=room)
 
+with app.app_context():
+    db.create_all()
+
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
