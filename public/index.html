@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>혁찬톡 Pro - Fresh & Social</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        :root { 
+            --glass: rgba(255, 255, 255, 0.2); 
+            --glass-dark: rgba(0, 0, 0, 0.1);
+            --neon-blue: #00d2ff; --neon-purple: #9d50bb; 
+            --my-msg: #fee500; --text-dark: #333;
+        }
+        * { box-sizing: border-box; }
+        body { 
+            font-family: 'Apple SD Gothic Neo', sans-serif; margin: 0; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh; display: flex; overflow: hidden; color: white;
+        }
+        .glass { background: var(--glass); backdrop-filter: blur(15px); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; }
+        .auth-overlay { position: fixed; inset: 0; background: inherit; display: flex; justify-content: center; align-items: center; z-index: 5000; }
+        .auth-box { width: 340px; padding: 40px; text-align: center; }
+        .auth-box h1 { font-size: 3rem; margin-bottom: 30px; text-shadow: 0 0 10px rgba(255,255,255,0.5); }
+        .auth-box input { width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 10px; border: none; background: rgba(255,255,255,0.9); color: black; }
+        .auth-box button { width: 100%; padding: 12px; border-radius: 10px; border: none; background: var(--text-dark); color: white; font-weight: bold; cursor: pointer; }
+        #notif-container { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
+        .notif-toast { padding: 15px 25px; border-radius: 15px; background: rgba(255,255,255,0.9); color: #333; box-shadow: 0 10px 30px rgba(0,0,0,0.2); animation: slideIn 0.3s ease; border-left: 5px solid var(--neon-purple); }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .sidebar { width: 350px; margin: 20px; display: flex; flex-direction: column; gap: 20px; }
+        .my-info { padding: 25px; text-align: center; }
+        .my-avatar { width: 80px; height: 80px; border-radius: 30px; border: 3px solid white; box-shadow: 0 0 20px rgba(255,255,255,0.3); }
+        .user-list { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+        .user-item { padding: 15px; display: flex; align-items: center; gap: 15px; cursor: pointer; transition: 0.3s; }
+        .user-item:hover { background: rgba(255,255,255,0.3); transform: scale(1.02); }
+        .user-item img { width: 50px; height: 50px; border-radius: 18px; }
+        .online-ring { width: 12px; height: 12px; border-radius: 50%; background: #00ff00; box-shadow: 0 0 10px #00ff00; }
+        .chat-container { flex: 1; margin: 20px 20px 20px 0; display: flex; flex-direction: column; }
+        .chat-header { padding: 20px; font-weight: bold; font-size: 1.2rem; display: flex; align-items: center; gap: 15px; }
+        .chat-win { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px; }
+        .msg-bubble { padding: 12px 18px; border-radius: 20px; max-width: 80%; line-height: 1.5; color: black; }
+        .mine { align-self: flex-end; background: var(--my-msg); border-bottom-right-radius: 2px; }
+        .others { align-self: flex-start; background: white; border-bottom-left-radius: 2px; }
+        .social-stats { display: flex; gap: 20px; margin-top: 15px; justify-content: center; }
+        .stat-item { display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 0.9rem; }
+        .comment-section { margin-top: 25px; text-align: left; }
+        .comment-input { width: 100%; padding: 10px; border-radius: 10px; border: none; background: rgba(0,0,0,0.05); margin-bottom: 10px; }
+        .comment-item { padding: 10px; border-bottom: 1px solid #eee; position: relative; }
+        .reply-btn { font-size: 0.75rem; color: var(--neon-purple); cursor: pointer; margin-left: 10px; }
+        .nested-comment { margin-left: 30px; border-left: 2px solid #ddd; padding-left: 10px; margin-top: 5px; font-size: 0.85rem; }
+        .input-box { padding: 20px; display: flex; gap: 10px; }
+        .input-box input { flex: 1; padding: 15px; border-radius: 15px; border: none; background: rgba(255,255,255,0.9); color: black; outline: none; }
+        .input-box button { padding: 0 25px; border-radius: 15px; border: none; background: var(--text-dark); color: white; font-weight: bold; cursor: pointer; }
+        .close-btn { position: absolute; top: 15px; right: 15px; cursor: pointer; font-size: 1.5rem; }
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 3000; justify-content: center; align-items: center; }
+        .modal-content { background: #fff; padding: 30px; border-radius: 15px; width: 340px; }
+    </style>
+</head>
+<body>
+    <div id="notif-container"></div>
+    <div id="auth-screen" class="auth-overlay">
+        <div class="auth-box glass">
+            <h1>혁찬톡 PRO</h1>
+            <div id="login-fields">
+                <input type="text" id="auth-id" placeholder="아이디">
+                <input type="password" id="auth-pw" placeholder="비밀번호">
+                <button onclick="handleAuth('login')">로그인</button>
+                <p style="font-size: 0.8rem; cursor: pointer; margin-top: 15px;" onclick="toggleAuth(true)">처음이신가요? 즉석 가입</p>
+            </div>
+            <div id="reg-fields" style="display:none;">
+                <input type="text" id="reg-id" placeholder="새 아이디">
+                <input type="password" id="reg-pw" placeholder="비밀번호">
+                <button onclick="handleAuth('register')">가입하기</button>
+                <p style="font-size: 0.8rem; cursor: pointer; margin-top: 15px;" onclick="toggleAuth(false)">이미 계정이 있습니다</p>
+            </div>
+        </div>
+    </div>
+    <div class="sidebar">
+        <div class="my-info glass">
+            <img id="my-pic" src="" class="my-avatar">
+            <h2 id="my-name" style="margin:10px 0;">이름</h2>
+            <button onclick="openEdit()" style="background:transparent; border:1px solid white; color:white; padding:5px 15px; border-radius:15px; cursor:pointer;">프로필 관리</button>
+        </div>
+        <div class="user-list glass" id="user-list"></div>
+    </div>
+    <div class="chat-container">
+        <div class="chat-header glass"><span>🌐 전체 채팅 스퀘어</span></div>
+        <div id="chat-win" class="chat-win glass" style="margin: 20px 0;"></div>
+        <div class="input-box glass">
+            <input type="text" id="msg-input" placeholder="메시지를 입력하세요..." onkeypress="if(event.keyCode==13) send()">
+            <button onclick="send()">전송</button>
+        </div>
+    </div>
+    <div id="profile-modal" class="modal">
+        <div class="modal-content glass" style="color: black; background: white; width: 450px; max-height: 80vh; overflow-y: auto; position: relative;">
+            <span class="close-btn" onclick="closeModal('profile-modal')">&times;</span>
+            <div style="text-align: center; padding: 20px;">
+                <img id="v-pic" src="" style="width:120px; height:120px; border-radius:40px; border:5px solid #f0f0f0;">
+                <h2 id="v-name" style="margin:10px 0;"></h2>
+                <p id="v-status" style="color:gray;"></p>
+                <div id="v-bio" style="background:#f9f9f9; padding:15px; border-radius:15px; font-size:0.9rem;"></div>
+                <div class="social-stats">
+                    <div class="stat-item" onclick="likeProfile()">❤️ <span id="v-likes">0</span></div>
+                    <div class="stat-item">💬 <span id="v-comm-count">0</span></div>
+                </div>
+                <div class="comment-section">
+                    <h4>댓글 남기기</h4>
+                    <div style="display:flex; gap:10px;">
+                        <input type="text" id="comm-input" class="comment-input" placeholder="칭찬 한마디!">
+                        <button onclick="addComment()" style="height:40px; border-radius:10px; border:none; background:var(--text-dark); color:white; cursor:pointer;">등록</button>
+                    </div>
+                    <div id="v-comments"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="edit-modal" class="modal">
+        <div class="modal-content glass" style="background:white; color:black; width: 350px;">
+            <h3>내 정보 수정</h3>
+            <input type="file" id="p-pic" style="margin-bottom:15px;">
+            <input type="text" id="p-name" placeholder="닉네임">
+            <input type="text" id="p-status" placeholder="상태 메시지">
+            <textarea id="p-bio" rows="4" placeholder="자기소개" style="width:100%; padding:10px; border-radius:10px; border:1px solid #ddd;"></textarea>
+            <div style="display:flex; gap:10px; margin-top:20px;">
+                <button onclick="saveProfile()" style="flex:1; padding:10px; background:var(--text-dark); color:white; border:none; border-radius:10px; cursor:pointer;">저장</button>
+                <button onclick="closeModal('edit-modal')" style="flex:1; padding:10px; background:#eee; border:none; border-radius:10px; cursor:pointer;">닫기</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        const socket = io();
+        let myId = '', myData = null, curTarget = null;
+        function toggleAuth(isReg) {
+            document.getElementById('login-fields').style.display = isReg ? 'none' : 'block';
+            document.getElementById('reg-fields').style.display = isReg ? 'block' : 'none';
+        }
+        async function handleAuth(type) {
+            const id = document.getElementById(type === 'login' ? 'auth-id' : 'reg-id').value;
+            const pw = document.getElementById(type === 'login' ? 'auth-pw' : 'reg-pw').value;
+            if(!id || !pw) return alert('입력해주세요!');
+            const r = await fetch(`/api/${type}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({id, password: pw})
+            });
+            const d = await r.json();
+            if(d.success) {
+                if(type === 'login') {
+                    myId = id; myData = d.user;
+                    document.getElementById('auth-screen').style.display = 'none';
+                    startApp();
+                } else { alert('가입 성공!'); toggleAuth(false); }
+            } else alert(d.msg);
+        }
+        function startApp() {
+            socket.emit('join', myId);
+            setInterval(() => socket.emit('heartbeat'), 10000);
+            updateMyUI();
+        }
+        function updateMyUI() {
+            document.getElementById('my-pic').src = myData.profilePic;
+            document.getElementById('my-name').innerText = myData.name;
+        }
+        function send() {
+            const i = document.getElementById('msg-input');
+            if(!i.value.trim()) return;
+            socket.emit('send_global', { text: i.value });
+            i.value = '';
+        }
+        socket.on('new_global', (m) => {
+            const win = document.getElementById('chat-win');
+            const div = document.createElement('div');
+            div.className = `msg-bubble ${m.user === myId ? 'mine' : 'others'}`;
+            div.innerHTML = `<strong>${m.name}</strong><br>${m.text}<br><small>${m.time}</small>`;
+            win.appendChild(div);
+            win.scrollTop = win.scrollHeight;
+        });
+        socket.on('user_list', (users) => {
+            const list = document.getElementById('user-list');
+            list.innerHTML = '';
+            users.forEach(u => {
+                if(u.id === myId) { myData = u; updateMyUI(); return; }
+                const div = document.createElement('div');
+                div.className = 'user-item glass';
+                div.onclick = () => showProfile(u);
+                div.innerHTML = `
+                    <img src="${u.profilePic}">
+                    <div style="flex:1">
+                        <div style="font-weight:bold;">${u.name}</div>
+                        <div style="font-size:0.8rem; opacity:0.8;">${u.statusMsg}</div>
+                    </div>
+                    ${u.active ? '<div class="online-ring"></div>' : ''}
+                `;
+                list.appendChild(div);
+                if(curTarget && curTarget.id === u.id) showProfile(u, true);
+            });
+        });
+        socket.on('notification', (n) => {
+            const container = document.getElementById('notif-container');
+            const toast = document.createElement('div');
+            toast.className = 'notif-toast';
+            let msg = n.type === 'like' ? `💖 ${n.fromName}님이 프로필을 좋아합니다!` : `💬 ${n.fromName}님이 댓글을 남겼습니다: ${n.text}`;
+            toast.innerText = msg;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        });
+        function showProfile(u, refreshOnly = false) {
+            curTarget = u;
+            document.getElementById('v-pic').src = u.profilePic;
+            document.getElementById('v-name').innerText = u.name;
+            document.getElementById('v-status').innerText = u.statusMsg;
+            document.getElementById('v-bio').innerText = u.bio;
+            document.getElementById('v-likes').innerText = u.likes.length;
+            document.getElementById('v-comm-count').innerText = u.comments.length;
+            const cList = document.getElementById('v-comments');
+            cList.innerHTML = '';
+            u.comments.forEach(c => {
+                const div = document.createElement('div');
+                div.className = 'comment-item';
+                div.innerHTML = `<strong>${c.authorName}:</strong> ${c.text} <span class="reply-btn" onclick="prepareReply(${c.id})">답글</span>`;
+                c.replies.forEach(r => {
+                    const rDiv = document.createElement('div');
+                    rDiv.className = 'nested-comment';
+                    rDiv.innerHTML = `<strong>${r.authorName}:</strong> ${r.text}`;
+                    div.appendChild(rDiv);
+                });
+                cList.appendChild(div);
+            });
+            if(!refreshOnly) document.getElementById('profile-modal').style.display = 'flex';
+        }
+        let replyToId = null;
+        function prepareReply(cid) {
+            replyToId = cid;
+            document.getElementById('comm-input').placeholder = "답글 달기...";
+            document.getElementById('comm-input').focus();
+        }
+        function addComment() {
+            const text = document.getElementById('comm-input').value;
+            if(!text) return;
+            socket.emit('add_comment', { targetId: curTarget.id, text, parentId: replyToId });
+            document.getElementById('comm-input').value = '';
+            document.getElementById('comm-input').placeholder = "칭찬 한마디!";
+            replyToId = null;
+        }
+        function likeProfile() { socket.emit('like_profile', curTarget.id); }
+        function openEdit() {
+            document.getElementById('p-name').value = myData.name;
+            document.getElementById('p-status').value = myData.statusMsg;
+            document.getElementById('p-bio').value = myData.bio;
+            document.getElementById('edit-modal').style.display = 'flex';
+        }
+        function saveProfile() {
+            const formData = new FormData();
+            formData.append('id', myId);
+            formData.append('name', document.getElementById('p-name').value);
+            formData.append('statusMsg', document.getElementById('p-status').value);
+            formData.append('bio', document.getElementById('p-bio').value);
+            const pic = document.getElementById('p-pic').files[0];
+            if(pic) formData.append('profile_pic', pic);
+            fetch('/api/profile', { method: 'POST', body: formData })
+            .then(r => r.json()).then(() => {
+                closeModal('edit-modal');
+                socket.emit('join', myId);
+            });
+        }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; curTarget = null; }
+    </script>
+</body>
+</html>
