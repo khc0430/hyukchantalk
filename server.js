@@ -1,3 +1,4 @@
+// server.js
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -5,347 +6,360 @@ const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-    maxHttpBufferSize: 1e7 // 이미지 업로드를 위한 버퍼 크기 확장 (10MB)
-});
+const io = new Server(server);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- 인메모리 데이터베이스 (귀여운 냥이들의 데이터 저장소) ---
-const users = {};       // socket.id -> 사용자 정보 (id, nickname, statusMsg, profilePic, online)
-const feeds = [];       // { id, userId, nickname, profilePic, content, image, likes: [], comments: [], timestamp }
-const guestbooks = {};  // targetUserId -> [ { id, userId, nickname, content, parentId, timestamp } ]
-const globalMessages = []; // 전체 채팅 메시지 { id, senderId, nickname, profilePic, content, timestamp }
-const privateMessages = []; // 1:1 메시지 { id, from, to, content, timestamp, read }
+/* ================= [ 상남자 고양이 데이터베이스 (In-Memory) ] ================= */
+const users = new Map();       // username => { username, password, nickname, bio, avatar, likedCount, online, socketId }
+const feeds = [];              // Array of { id, author, content, image, likes: [], comments: [] }
+const globalMessages = [];     // Array of { id, sender, text, timestamp }
+const privateMessages = [];    // Array of { id, from, to, text, read, timestamp }
+const notifications = [];      // Array of { id, to, text, type, targetTab, timestamp }
+const guestbooks = new Map();  // username => Array of { id, author, text, parentId, timestamp }
 
 let feedIdCounter = 1;
-let commentIdCounter = 1;
 let msgIdCounter = 1;
+let notifIdCounter = 1;
+let commentIdCounter = 1;
+let guestbookIdCounter = 1;
 
+// 대한민국 시간 구하기 함수 (상남자는 ISO 따위 안 쓴다냥)
+function getKSTTime() {
+    const now = new Date();
+    const kstOffset = 9 * 60 * 60 * 1000;
+    const kstDate = new Date(now.getTime() + kstOffset);
+    let hours = kstDate.getUTCHours();
+    const minutes = String(kstDate.getUTCMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? '오후' : '오전';
+    hours = hours % 12;
+    hours = hours ? hours : 12; 
+    return `${ampm} ${hours}:${minutes}`;
+}
+
+/* ================= [ Socket.io 연결 관리 ] ================= */
 io.on('connection', (socket) => {
-    console.log(`🐾 새로운 고양이 접속: ${socket.id}`);
+    let currentUser = null;
 
-    // [초기 가입 / 로그인]
-    socket.on('join_user', ({ nickname, statusMsg, profilePic }) => {
-        users[socket.id] = {
-            id: socket.id,
-            nickname: nickname || '익명 냥이',
-            statusMsg: statusMsg || '야옹~ 반가워요!',
-            profilePic: profilePic || '🐱',
-            online: true,
-            currentRoom: 'feeds' // 현재 보고 있는 탭/방 상태 추적 ('feeds', 'friends', 'global', 'private_대상ID')
-        };
-
-        // 가입 성공 응답 및 공지사항 트리거를 위한 플래그 전송
-        socket.emit('join_success', { myId: socket.id });
-
-        // 모든 유저에게 갱신된 친구 목록 전달
-        updateAndBroadcastUsers();
-        // 기존 피드 목록 전송
-        socket.emit('feed_list', feeds);
-    });
-
-    // [프로필 업데이트]
-    socket.on('update_profile', ({ nickname, statusMsg, profilePic }) => {
-        if (!users[socket.id]) return;
-        users[socket.id].nickname = nickname;
-        users[socket.id].statusMsg = statusMsg;
-        users[socket.id].profilePic = profilePic;
-
-        // 다른 피드나 댓글의 닉네임/프로필도 실시간 동기화
-        feeds.forEach(f => {
-            if (f.userId === socket.id) {
-                f.nickname = nickname;
-                f.profilePic = profilePic;
-            }
-            f.comments.forEach(c => {
-                if (c.userId === socket.id) {
-                    c.nickname = nickname;
-                }
-            });
-        });
-
-        updateAndBroadcastUsers();
-        io.emit('feed_list', feeds);
-        socket.emit('toast_alert', { message: '🐱 프로필이 냥냥하게 변경되었습니다!' });
-    });
-
-    // [탭 상태 변경 감지 - 알림 및 읽음 처리에 매우 중요]
-    socket.on('change_room', (roomName) => {
-        if (!users[socket.id]) return;
-        users[socket.id].currentRoom = roomName;
-
-        // 만약 전체 채팅방에 들어왔다면, 전체 채팅 안읽은 메시지 카운트 리셋용으로 알림 다시 보냄
-        if (roomName === 'global') {
-            // 특별한 동작 없이 클라이언트가 0으로 초기화하도록 유도
+    // 1. 회원가입 및 로그인 (통합 처리 - 상남자는 복잡한 절차 생략한다냥)
+    socket.on('auth_request', ({ username, password }) => {
+        if (!username || !password) {
+            socket.emit('auth_response', { success: false, message: '아이디랑 비번 똑바로 입력해라냥!' });
+            return;
         }
 
-        // 만약 특정 상대와의 1:1 방에 들어왔다면 (예: private_XXXX)
-        if (roomName.startsWith('private_')) {
-            const targetId = roomName.replace('private_', '');
-            // 상대방이 나에게 보낸 메시지들을 모두 '읽음(read=true)' 처리
-            privateMessages.forEach(m => {
-                if (m.from === targetId && m.to === socket.id) {
-                    m.read = true;
-                }
-            });
-            // 관련된 두 사람에게 업데이트된 대화 기록 전송 (실시간 읽음 처리 반영)
-            sendPrivateMessages(socket.id, targetId);
-            sendPrivateMessages(targetId, socket.id);
-            // 뱃지 상태 업데이트용
-            sendUnreadBadges(targetId);
-        }
-        sendUnreadBadges(socket.id);
-    });
-
-    // [1탭: 피드 작성]
-    socket.on('create_feed', ({ content, image }) => {
-        const user = users[socket.id];
-        if (!user) return;
-
-        const newFeed = {
-            id: feedIdCounter++,
-            userId: user.id,
-            nickname: user.nickname,
-            profilePic: user.profilePic,
-            content,
-            image, // Base64 DataURL or null
-            likes: [],
-            comments: [],
-            timestamp: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
-        };
-
-        feeds.unshift(newFeed); // 최신글 상단
-        io.emit('feed_list', feeds);
-        socket.emit('toast_alert', { message: '🐾 새 피드가 등록되었다냥!' });
-    });
-
-    // [피드 좋아요]
-    socket.on('like_feed', (feedId) => {
-        const user = users[socket.id];
-        const feed = feeds.find(f => f.id === feedId);
-        if (!feed || !user) return;
-
-        const index = feed.likes.indexOf(user.id);
-        if (index === -1) {
-            feed.likes.push(user.id);
-            // 알림 발송 (자신이 자신에게 누른 건 제외)
-            if (feed.userId !== user.id) {
-                io.to(feed.userId).emit('notification', {
-                    title: '🐾 좋아요 알림!',
-                    message: `[${user.nickname}]님이 집사님의 피드를 좋아합니다냥!`,
-                    targetTab: 'feeds'
-                });
+        if (users.has(username)) {
+            // 로그인 절차
+            const user = users.get(username);
+            if (user.password === password) {
+                currentUser = user;
+                currentUser.online = true;
+                currentUser.socketId = socket.id;
+                socket.emit('auth_response', { success: true, user: currentUser, isNew: false });
+                broadcastUserList();
+            } else {
+                socket.emit('auth_response', { success: false, message: '비밀번호가 틀렸다냥! 등짝 스매시 맞을래냥?' });
             }
         } else {
-            feed.likes.splice(index, 1);
-        }
-        io.emit('feed_list', feeds);
-    });
-
-    // [피드 댓글/대댓글 작성 - 트리 구조]
-    socket.on('create_comment', ({ feedId, content, parentId }) => {
-        const user = users[socket.id];
-        const feed = feeds.find(f => f.id === feedId);
-        if (!feed || !user) return;
-
-        const newComment = {
-            id: commentIdCounter++,
-            userId: user.id,
-            nickname: user.nickname,
-            content,
-            parentId: parentId || null,
-            timestamp: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
-        };
-
-        feed.comments.push(newComment);
-        io.emit('feed_list', feeds);
-
-        // 알림 처리
-        if (feed.userId !== user.id && !parentId) {
-            io.to(feed.userId).emit('notification', {
-                title: '🐾 냐옹 댓글 알림!',
-                message: `[${user.nickname}]님이 피드에 댓글을 남겼다냥!`,
-                targetTab: 'feeds'
-            });
+            // 회원가입 절차
+            const newUser = {
+                username,
+                password,
+                nickname: `상남자고양이_${username}`,
+                bio: '등근육 쩌는 고양이다냥.',
+                avatar: '🐱',
+                likedCount: 0,
+                online: true,
+                socketId: socket.id
+            };
+            users.set(username, newUser);
+            currentUser = newUser;
+            socket.emit('auth_response', { success: true, user: newUser, isNew: true });
+            broadcastUserList();
         }
     });
 
-    // [2탭: 친구 프로필 방명록 조회]
-    socket.on('get_guestbook', (targetUserId) => {
-        const list = guestbooks[targetUserId] || [];
-        socket.emit('guestbook_list', { targetUserId, list });
+    // 재접속 시 유저 정보 동기화 및 밀린 데이터 전송
+    socket.on('request_sync', () => {
+        if (!currentUser) return;
+        socket.emit('sync_feeds', feeds);
+        socket.emit('sync_global_chat', globalMessages);
+        sendPrivateChatHistory();
+        sendUnreadBadges();
     });
 
-    // [친구 프로필 방명록 작성]
-    socket.on('create_guestbook', ({ targetUserId, content, parentId }) => {
-        const user = users[socket.id];
-        if (!user) return;
-
-        if (!guestbooks[targetUserId]) guestbooks[targetUserId] = [];
+    // 2. 프로필 업데이트
+    socket.on('update_profile', ({ nickname, bio, avatar }) => {
+        if (!currentUser) return;
+        currentUser.nickname = nickname || currentUser.nickname;
+        currentUser.bio = bio || currentUser.bio;
+        currentUser.avatar = avatar || currentUser.avatar;
         
-        const newEntry = {
-            id: commentIdCounter++,
-            userId: user.id,
-            nickname: user.nickname,
+        socket.emit('profile_updated', currentUser);
+        broadcastUserList();
+    });
+
+    // 3. 피드 작성 (이미지 포함 가능)
+    socket.on('create_feed', ({ content, image }) => {
+        if (!currentUser) return;
+        const newFeed = {
+            id: feedIdCounter++,
+            author: currentUser.username,
+            nickname: currentUser.nickname,
+            avatar: currentUser.avatar,
             content,
-            parentId: parentId || null,
-            timestamp: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+            image: image || null,
+            likes: [],
+            comments: []
         };
+        feeds.unshift(newFeed); // 최신글 상단
+        io.emit('sync_feeds', feeds);
+    });
 
-        guestbooks[targetUserId].push(newEntry);
-        io.emit('guestbook_list', { targetUserId, list: guestbooks[targetUserId] });
-
-        // 알림
-        if (targetUserId !== user.id) {
-            io.to(targetUserId).emit('notification', {
-                title: '🐾 방명록 냐옹!',
-                message: `[${user.nickname}]님이 프로필에 방명록을 남겼다냥!`,
-                targetTab: 'friends',
-                targetUser: targetUserId
-            });
+    // 피드 좋아요
+    socket.on('like_feed', (feedId) => {
+        if (!currentUser) return;
+        const feed = feeds.find(f => f.id === feedId);
+        if (feed) {
+            const idx = feed.likes.indexOf(currentUser.username);
+            if (idx === -1) {
+                feed.likes.push(currentUser.username);
+                // 알림 생성 (본인 글 제외)
+                if (feed.author !== currentUser.username) {
+                    createNotification(feed.author, `🔥 ${currentUser.nickname}님이 네 피드를 좋아한다냥!`, 'feed');
+                }
+            } else {
+                feed.likes.splice(idx, 1);
+            }
+            io.emit('sync_feeds', feeds);
         }
     });
 
-    // [3탭: 전체 채팅 발송]
-    socket.on('send_global_msg', (content) => {
-        const user = users[socket.id];
-        if (!user) return;
+    // 피드 댓글/대댓글 작성 (트리 구조)
+    socket.on('comment_feed', ({ feedId, parentId, text }) => {
+        if (!currentUser) return;
+        const feed = feeds.find(f => f.id === feedId);
+        if (feed) {
+            const newComment = {
+                id: commentIdCounter++,
+                parentId: parentId || null,
+                author: currentUser.username,
+                nickname: currentUser.nickname,
+                text,
+                timestamp: getKSTTime()
+            };
+            feed.comments.push(newComment);
+            io.emit('sync_feeds', feeds);
 
+            if (feed.author !== currentUser.username && !parentId) {
+                createNotification(feed.author, `💬 ${currentUser.nickname}님이 네 피드에 댓글 달았다냥!`, 'feed');
+            }
+        }
+    });
+
+    // 4. 친구 상세 조회 및 방명록
+    socket.on('get_friend_detail', (targetUsername) => {
+        const target = users.get(targetUsername);
+        if (!target) return;
+        const posts = guestbooks.get(targetUsername) || [];
+        socket.emit('friend_detail_response', { target, guestbook: posts });
+    });
+
+    socket.on('like_friend', (targetUsername) => {
+        const target = users.get(targetUsername);
+        if (!target) return;
+        target.likedCount = (target.likedCount || 0) + 1;
+        createNotification(targetUsername, `💖 ${currentUser.nickname}님이 네 프로필을 좋아한다냥!`, 'friend');
+        
+        const posts = guestbooks.get(targetUsername) || [];
+        socket.emit('friend_detail_response', { target, guestbook: posts });
+        broadcastUserList();
+    });
+
+    socket.on('write_guestbook', ({ targetUsername, parentId, text }) => {
+        if (!currentUser) return;
+        if (!guestbooks.has(targetUsername)) {
+            guestbooks.set(targetUsername, []);
+        }
+        const posts = guestbooks.get(targetUsername);
+        const newPost = {
+            id: guestbookIdCounter++,
+            parentId: parentId || null,
+            author: currentUser.username,
+            nickname: currentUser.nickname,
+            text,
+            timestamp: getKSTTime()
+        };
+        posts.push(newPost);
+        
+        const target = users.get(targetUsername);
+        io.emit('friend_detail_response', { target, guestbook: posts });
+        if (targetUsername !== currentUser.username) {
+            createNotification(targetUsername, `🐾 ${currentUser.nickname}님이 방명록을 남겼다냥!`, 'friend');
+        }
+    });
+
+    // 5. 전체 채팅방
+    socket.on('send_global_msg', (text) => {
+        if (!currentUser) return;
         const msg = {
             id: msgIdCounter++,
-            senderId: user.id,
-            nickname: user.nickname,
-            profilePic: user.profilePic,
-            content,
-            timestamp: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+            sender: currentUser.username,
+            nickname: currentUser.nickname,
+            avatar: currentUser.avatar,
+            text,
+            timestamp: getKSTTime()
         };
-
         globalMessages.push(msg);
-        io.emit('receive_global_msg', msg);
-
-        // 전체 채팅방을 보고 있지 않은 모든 온라인 유저들에게 뱃지 카운트 갱신 및 스낵바 전송
-        Object.values(users).forEach(u => {
-            if (u.id !== user.id && u.currentRoom !== 'global') {
-                sendUnreadBadges(u.id);
-                io.to(u.id).emit('notification', {
-                    title: '🐱 전체채팅 냥!',
-                    message: `${user.nickname}: ${content.substring(0, 15)}...`,
-                    targetTab: 'global'
-                });
+        io.emit('new_global_msg', msg);
+        
+        // 다른 접속자들에게 전체채팅방 안 읽음 카운트 갱신용 브로드캐스트
+        users.forEach(u => {
+            if (u.username !== currentUser.username) {
+                const targetSocket = io.sockets.sockets.get(u.socketId);
+                if (targetSocket) {
+                    targetSocket.emit('bump_global_badge');
+                }
             }
         });
     });
 
-    // [1:1 채팅 목록 요청 및 전송]
-    socket.on('request_private_chat', (targetId) => {
-        sendPrivateMessages(socket.id, targetId);
-    });
-
-    // [1:1 개인 채팅 발송]
-    socket.on('send_private_msg', ({ to, content }) => {
-        const user = users[socket.id];
-        if (!user) return;
-
-        const targetUser = users[to];
-        // 상대방이 현재 나와의 1:1 방에 켜져있는지 확인하여 실시간 읽음(read) 처리 결정
-        const isRead = targetUser && targetUser.currentRoom === `private_${user.id}`;
+    // 6. 1:1 개인 채팅방 & 실시간 읽음 처리
+    socket.on('send_private_msg', ({ to, text }) => {
+        if (!currentUser) return;
+        const targetUser = users.get(to);
+        
+        // 상대방이 현재 나와의 1:1 대화방을 열고 있는지 여부 체크
+        // 클라이언트가 activeChatTarget 프로퍼티로 판별할 수 있도록 실시간 동기화
+        const isTargetReading = targetUser && targetUser.online && targetUser.activeChatTarget === currentUser.username;
 
         const msg = {
             id: msgIdCounter++,
-            from: user.id,
+            from: currentUser.username,
             to,
-            nickname: user.nickname,
-            profilePic: user.profilePic,
-            content,
-            timestamp: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
-            read: isRead
+            text,
+            read: !!isTargetReading,
+            timestamp: getKSTTime()
         };
-
         privateMessages.push(msg);
 
-        // 발신자와 수신자 양쪽 모두에게 메시지 갱신 처리 (수정된 핵심: 본인과 상대방에게 정확히 도달)
-        sendPrivateMessages(user.id, to);
-        if (user.id !== to) {
-            sendPrivateMessages(to, user.id);
-        }
+        // 보낸 사람 전송 완료
+        socket.emit('new_private_msg', msg);
 
-        // 상대방이 방에 없을 경우 알림 및 배지 업데이트
-        if (!isRead) {
-            sendUnreadBadges(to);
-            io.to(to).emit('notification', {
-                title: '🐾 비밀 꾹꾹이 편지!',
-                message: `[${user.nickname}]님이 1:1 메시지를 보냈다냥!`,
-                targetTab: 'friends',
-                targetUser: user.id // 알림 클릭 시 해당 유저 상세 모달 오픈용
+        // 받는 사람 처리
+        if (targetUser && targetUser.online) {
+            const targetSocket = io.sockets.sockets.get(targetUser.socketId);
+            if (targetSocket) {
+                targetSocket.emit('new_private_msg', msg);
+                if (!isTargetReading) {
+                    targetSocket.emit('bump_private_badge', currentUser.username);
+                    createNotification(to, `✉️ ${currentUser.nickname}님이 비밀 메시지를 보냈다냥!`, 'chat');
+                }
+            }
+        }
+    });
+
+    // 현재 열고 있는 대화방 상태 업데이트 (읽음 처리용 핵심 로직)
+    socket.on('set_active_chat', (targetUsername) => {
+        if (!currentUser) return;
+        currentUser.activeChatTarget = targetUsername;
+        
+        if (targetUsername) {
+            // 상대방이 나에게 보낸 메시지 전부 읽음 처리
+            privateMessages.forEach(msg => {
+                if (msg.from === targetUsername && msg.to === currentUser.username) {
+                    msg.read = true;
+                }
             });
+            // 상대방에게도 다 읽었다고 통보해서 실시간으로 '1'을 지움
+            const targetUser = users.get(targetUsername);
+            if (targetUser && targetUser.online) {
+                const targetSocket = io.sockets.sockets.get(targetUser.socketId);
+                if (targetSocket) {
+                    targetSocket.emit('private_msgs_read_fallback', currentUser.username);
+                }
+            }
         }
-        sendUnreadBadges(user.id);
+        sendPrivateChatHistory();
+        sendUnreadBadges();
     });
 
-    // [실시간 입력 중 상태 감지]
-    socket.on('typing', ({ room, isTyping }) => {
-        const user = users[socket.id];
-        if (!user) return;
-
-        if (room === 'global') {
-            socket.broadcast.emit('user_typing', { room: 'global', nickname: user.nickname, isTyping });
-        } else if (room.startsWith('private_')) {
-            const targetId = room.replace('private_', '');
-            io.to(targetId).emit('user_typing', { room: `private_${user.id}`, nickname: user.nickname, isTyping });
+    // 7. 실시간 입력 중 표시 (Typing)
+    socket.on('typing_status', ({ to, isTyping, isGlobal }) => {
+        if (!currentUser) return;
+        if (isGlobal) {
+            socket.broadcast.emit('global_typing_status', { nickname: currentUser.nickname, isTyping });
+        } else if (to) {
+            const targetUser = users.get(to);
+            if (targetUser && targetUser.online) {
+                const targetSocket = io.sockets.sockets.get(targetUser.socketId);
+                if (targetSocket) {
+                    targetSocket.emit('private_typing_status', { from: currentUser.username, nickname: currentUser.nickname, isTyping });
+                }
+            }
         }
     });
 
-    // [연결 종료]
-    socket.on('disconnect', () => {
-        console.log(`🐾 고양이 가출함: ${socket.id}`);
-        if (users[socket.id]) {
-            users[socket.id].online = false;
-            updateAndBroadcastUsers();
+    // 알림 생성 및 발송 공통 유틸 함수
+    function createNotification(toUsername, text, targetTab) {
+        const notif = {
+            id: notifIdCounter++,
+            to: toUsername,
+            text,
+            targetTab,
+            timestamp: getKSTTime()
+        };
+        notifications.push(notif);
+        const target = users.get(toUsername);
+        if (target && target.online) {
+            const targetSocket = io.sockets.sockets.get(target.socketId);
+            if (targetSocket) {
+                targetSocket.emit('live_notification', notif);
+            }
         }
-    });
-
-    // --- 내부 헬퍼 함수들 ---
-    function updateAndBroadcastUsers() {
-        io.emit('user_list', Object.values(users));
     }
 
-    function sendPrivateMessages(userId, targetId) {
-        // userId와 targetId 간에 오고 간 모든 메시지 필터링하여 정렬 전송
-        const conversation = privateMessages.filter(m => 
-            (m.from === userId && m.to === targetId) || (m.from === targetId && m.to === userId)
-        );
-        io.to(userId).emit('private_msg_list', { targetId, conversation });
+    function broadcastUserList() {
+        const list = Array.from(users.values()).map(u => ({
+            username: u.username,
+            nickname: u.nickname,
+            bio: u.bio,
+            avatar: u.avatar,
+            online: u.online,
+            likedCount: u.likedCount || 0
+        }));
+        io.emit('user_list', list);
     }
 
-    function sendUnreadBadges(userId) {
-        // 1. 친구 탭 뱃지: 나에게 1:1 메시지를 보낸 유저들 중 안 읽은 메시지가 있는 총 '인원수'
+    function sendPrivateChatHistory() {
+        if (!currentUser) return;
+        const history = privateMessages.filter(m => m.from === currentUser.username || m.to === currentUser.username);
+        socket.emit('sync_private_chat', history);
+    }
+
+    function sendUnreadBadges() {
+        if (!currentUser) return;
+        // 나에게 온 메시지 중 안 읽은 대화 상대방의 '인원수' 계산
         const unreadSenders = new Set();
         privateMessages.forEach(m => {
-            if (m.to === userId && !m.read) {
+            if (m.to === currentUser.username && !m.read) {
                 unreadSenders.add(m.from);
             }
         });
-
-        // 2. 전체 채팅방 뱃지: 전체 채팅 메시지 중 내가 'global' 탭에 없을 때 쌓인 개수
-        // (간단 구현을 위해 마지막 접속 이후 전체 개수로 연산 처리 가능하나 스펙에 맞춰 인메모리 기반 카운팅 유도)
-        // 여기서는 클라이언트가 활성화되어 있지 않을 때 서버 캐시나 임시 가상 카운트로 대체 처리 가능. 
-        // 클라이언트 사이드 보완을 유도하기 위해 토탈 메시지 중 최신 유입 계산 전달.
-        let totalGlobalUnread = 0; 
-        const u = users[userId];
-        if (u && u.currentRoom !== 'global') {
-            // 편의상 실시간 알림 뱃지 시스템 유지를 위해 수치 제공
-            totalGlobalUnread = 1; // 변동 트리거용 1 이상값 또는 가상 계산값
-        }
-
-        io.to(userId).emit('unread_badges', {
-            friendsBadge: unreadSenders.size,
-            globalBadge: totalGlobalUnread 
-        });
+        socket.emit('update_badges', { privateCount: unreadSenders.size });
     }
+
+    // 연결 종료 처리
+    socket.on('disconnect', () => {
+        if (currentUser) {
+            currentUser.online = false;
+            currentUser.activeChatTarget = null;
+            broadcastUserList();
+        }
+    });
 });
 
 const PORT = 3000;
 server.listen(PORT, () => {
-    console.log(`🐱 깜찍뽀짝 혁찬톡 서버가 http://localhost:${PORT} 에서 달리는 중이다냥!`);
+    console.log(`🐱 고양이 메신저 [혁찬톡] 서버 가동! http://localhost:${PORT}`);
 });
