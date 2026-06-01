@@ -13,7 +13,7 @@ from datetime import datetime
 app = Flask(__name__)
 app.secret_key = 'hyukchan_secret_key'
 
-# 데이터베이스 경로 설정
+# 데이터베이스 및 파일 경로 설정
 basedir = os.path.abspath(os.path.dirname(__file__))
 db_uri = os.environ.get('DATABASE_URL')
 if db_uri and db_uri.startswith("postgres://"):
@@ -24,6 +24,7 @@ app.config['UPLOAD_FOLDER'] = os.path.join(basedir, 'static', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
 db = SQLAlchemy(app)
+# 서버 환경에 맞춰 최적화
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 
 # 모델 정의
@@ -112,9 +113,7 @@ def update_profile():
 
 @app.route('/api/status')
 def status_api():
-    # 이 API를 호출할 때마다 현재 사용자의 활동 시간을 갱신 (10초마다 자동 실행됨)
     update_activity()
-
     now = time.time()
     all_users = User.query.all()
     my_id = session.get('user_id')
@@ -183,4 +182,6 @@ with app.app_context():
     db.create_all()
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5000)
+    # Render의 포트 번호를 환경 변수에서 가져옴
+    port = int(os.environ.get('PORT', 10000))
+    socketio.run(app, host='0.0.0.0', port=port)
