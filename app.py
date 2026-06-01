@@ -12,17 +12,15 @@ app.secret_key = 'hyukchan_secret_key'
 
 # 데이터베이스 경로 설정
 basedir = os.path.abspath(os.path.dirname(__file__))
-db_uri = os.environ.get('DATABASE_URL')
-if db_uri and db_uri.startswith("postgres://"):
-    db_uri = db_uri.replace("postgres://", "postgresql://", 1)
-app.config['SQLALCHEMY_DATABASE_URI'] = db_uri or f'sqlite:///{os.path.join(basedir, "hyukchantalk.db")}'
+db_path = os.path.join(basedir, 'hyukchantalk.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = os.path.join(basedir, 'static', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
 db = SQLAlchemy(app)
-# eventlet 대신 threading 방식을 사용하여 충돌 방지
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+# 가장 호환성이 좋은 설정
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 class User(db.Model):
     id = db.Column(db.String(50), primary_key=True)
@@ -43,19 +41,13 @@ class Message(db.Model):
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-def update_activity():
-    if session.get('user_id'):
-        user = db.session.get(User, session.get('user_id'))
-        if user:
-            user.last_active = time.time()
-            db.session.commit()
-
 @app.route('/')
 def index():
-    if not session.get('logged_in'):
-        return redirect(url_for('login'))
-    update_activity()
+    if not session.get('logged_in'): return redirect(url_for('login'))
     user = db.session.get(User, session.get('user_id'))
+    if user:
+        user.last_active = time.time()
+        db.session.commit()
     return render_template('index.html', user=user)
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -67,9 +59,8 @@ def login():
         if user and check_password_hash(user.password, password):
             session['logged_in'] = True
             session['user_id'] = user_id
-            update_activity()
             return redirect(url_for('index'))
-        return '<script>alert("아이디 또는 비밀번호가 틀렸습니다."); history.back();</script>'
+        return '<script>alert("틀렸습니다."); history.back();</script>'
     return render_template('login.html')
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -77,18 +68,16 @@ def register():
     if request.method == 'POST':
         user_id = request.form.get('user_id')
         password = request.form.get('password')
-        if db.session.get(User, user_id):
-            return '<script>alert("이미 존재하는 아이디입니다."); history.back();</script>'
+        if db.session.get(User, user_id): return '<script>alert("이미 있음"); history.back();</script>'
         new_user = User(id=user_id, password=generate_password_hash(password), name=user_id)
         db.session.add(new_user)
         db.session.commit()
-        return f'<script>alert("가입 성공!"); location.href="{url_for("login")}";</script>'
+        return f'<script>alert("성공!"); location.href="{url_for("login")}";</script>'
     return render_template('register.html')
 
 @app.route('/api/profile/update', methods=['POST'])
 def update_profile():
     my_id = session.get('user_id')
-    if not my_id: return jsonify({'error': 'Unauthorized'}), 401
     user = db.session.get(User, my_id)
     user.name = request.form.get('name', user.name)
     user.status_msg = request.form.get('status_msg', user.status_msg)
@@ -104,15 +93,18 @@ def update_profile():
 
 @app.route('/api/status')
 def status_api():
-    update_activity()
     now = time.time()
     all_users = User.query.all()
     my_id = session.get('user_id')
+    # 활동 시간 업데이트
+    me = db.session.get(User, my_id)
+    if me:
+        me.last_active = now
+        db.session.commit()
     return jsonify([{
         'id': u.id, 'name': u.name, 'status_msg': u.status_msg,
         'profile_pic': u.profile_pic,
-        'status': "활동 중" if now - u.last_active < 60 else "비활동 중",
-        'bio': u.bio
+        'status': "활동 중" if now - u.last_active < 60 else "비활동 중"
     } for u in all_users if u.id != my_id])
 
 @app.route('/logout')
@@ -161,5 +153,5 @@ with app.app_context():
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 10000))
-    # debug=False로 설정하여 더 안정적으로 실행
+    # Render에서는 debug=False가 필수입니다.
     socketio.run(app, host='0.0.0.0', port=port, debug=False)
