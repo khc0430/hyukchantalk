@@ -3,382 +3,642 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>혁찬톡 - 즐거운 대화</title>
+    <title>혁찬톡 - 깜찍뽀짝 고양이 천국</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        :root { 
-            --kakao-yellow: #fee500; --kakao-brown: #3c1e1e;
-            --bg-blue: #abc1d1; --text-gray: #666;
+        :root {
+            --cat-bg: #FFFDE7;       /* 파스텔 연노랑 */
+            --cat-main: #FEE500;     /* 카톡 노랑 */
+            --cat-dark: #4A3423;     /* 부드러운 고양이 갈색 */
+            --cat-bubble-me: #FEE500;
+            --cat-bubble-other: #FFFFFF;
+            --cat-accent: #FF8A80;   /* 핑크 발바닥 */
         }
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { 
-            font-family: 'Apple SD Gothic Neo', sans-serif; margin: 0; 
-            background: #fff; height: 100vh; width: 100vw;
-            display: flex; flex-direction: column; overflow: hidden; color: #000;
-        }
-
-        /* Auth Screen */
-        .auth-overlay { position: fixed; inset: 0; background: var(--kakao-yellow); display: flex; justify-content: center; align-items: center; z-index: 5000; padding: 20px; }
-        .auth-box { width: 100%; max-width: 320px; text-align: center; }
-        .auth-box h1 { font-size: 3rem; color: var(--kakao-brown); margin-bottom: 50px; }
-        .auth-box input { width: 100%; padding: 15px; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 10px; font-size: 1rem; }
-        .auth-box button { width: 100%; padding: 15px; background: var(--kakao-brown); color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; }
-
-        /* Header */
-        .header { height: 60px; background: #fff; display: flex; align-items: center; padding: 0 20px; font-weight: bold; font-size: 1.2rem; border-bottom: 1px solid #eee; justify-content: space-between; }
-
-        /* Tab Content */
-        .tab-content { flex: 1; display: none; flex-direction: column; overflow: hidden; }
-        .tab-content.active { display: flex; }
-
-        /* User List */
-        .scroll-list { flex: 1; overflow-y: auto; padding: 5px 0; }
-        .user-item { display: flex; align-items: center; gap: 15px; padding: 12px 20px; cursor: pointer; border-bottom: 1px solid #f9f9f9; position: relative; }
-        .avatar-wrap { position: relative; width: 50px; height: 50px; flex-shrink: 0; }
-        .item-avatar { width: 100%; height: 100%; border-radius: 18px; object-fit: cover; border: 1px solid #eee; }
-        .status-dot { position: absolute; bottom: -2px; right: -2px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; background: #ccc; }
-        .status-dot.online { background: #4CAF50; }
-        .user-info { flex: 1; min-width: 0; }
-        .user-info strong { display: block; font-size: 1rem; margin-bottom: 3px; }
-        .user-info small { color: var(--text-gray); font-size: 0.85rem; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-        /* Chat UI */
-        .chat-win { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px; background: var(--bg-blue); }
-        .msg-row { display: flex; flex-direction: column; }
-        .msg-bubble { padding: 8px 12px; border-radius: 8px; font-size: 0.95rem; max-width: 80%; line-height: 1.5; position: relative; }
-        .mine { align-self: flex-end; align-items: flex-end; }
-        .others { align-self: flex-start; align-items: flex-start; }
-        .mine .msg-bubble { background: var(--kakao-yellow); border-top-right-radius: 2px; }
-        .others .msg-bubble { background: #fff; border-top-left-radius: 2px; }
-        .msg-time { font-size: 0.7rem; color: #555; margin-top: 4px; }
-        .msg-sender { font-size: 0.8rem; font-weight: bold; margin-bottom: 4px; }
-
-        /* Input Box */
-        .input-box { padding: 10px 15px; background: #fff; display: flex; gap: 10px; border-top: 1px solid #eee; padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
-        .input-box input { flex: 1; padding: 10px; border: 1px solid #eee; border-radius: 20px; outline: none; background: #f8f8f8; }
-        .input-box button { padding: 0 15px; border: none; background: var(--kakao-yellow); border-radius: 5px; font-weight: bold; cursor: pointer; }
-
-        /* Bottom Nav */
-        .bottom-nav { height: 65px; display: flex; border-top: 1px solid #eee; background: #fafafa; padding-bottom: env(safe-area-inset-bottom); }
-        .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #999; cursor: pointer; position: relative; }
-        .nav-item.active { color: #000; }
-        .nav-icon { font-size: 1.5rem; }
+        * { box-sizing: border-box; font-family: 'Malgun Gothic', sans-serif; -webkit-tap-highlight-color: transparent; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: var(--cat-bg); color: var(--cat-dark); overflow: hidden; }
         
-        /* Badge */
-        .badge { position: absolute; top: 8px; right: 25%; background: #ff4d4d; color: white; border-radius: 10px; padding: 2px 6px; font-size: 0.7rem; font-weight: bold; display: none; min-width: 18px; text-align: center; }
-
-        /* Overlay Views */
-        .overlay-view { position: fixed; inset: 0; background: #fff; z-index: 1000; display: none; flex-direction: column; }
-        .overlay-view.active { display: flex; }
+        /* 모바일 전체 화면 고정 컨테이너 */
+        #app-container { display: flex; flex-direction: column; width: 100%; height: 100svh; position: relative; }
         
-        /* Profile Card */
-        .profile-card { flex: 1; overflow-y: auto; text-align: center; padding: 60px 20px; }
-        .profile-card img { width: 100px; height: 100px; border-radius: 35px; border: 1px solid #eee; margin-bottom: 20px; }
-        .social-stats { display: flex; gap: 30px; justify-content: center; margin: 25px 0; }
-        .stat-btn { display: flex; align-items: center; gap: 5px; cursor: pointer; color: var(--text-gray); }
-        .comment-item { text-align: left; padding: 12px; border-bottom: 1px solid #f9f9f9; }
+        /* 상단 네비 바 */
+        .top-header { height: 50px; background: var(--cat-main); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2rem; border-bottom: 3px dashed var(--cat-dark); box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        
+        /* 메인 콘텐츠 영역 (탭 전환) */
+        .tab-content { flex: 1; overflow-y: auto; display: none; padding: 15px; padding-bottom: 20px; background-image: radial-gradient(var(--cat-dark) 1px, transparent 0); background-size: 24px 24px; background-opacity: 0.05; opacity: 0.98; }
+        .tab-content.active { display: block; }
 
-        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 3000; justify-content: center; align-items: center; }
-        .modal-content { background: white; padding: 30px; border-radius: 15px; width: 320px; color: #000; }
-        .modal-content input, .modal-content textarea { width: 100%; padding: 12px; margin-bottom: 12px; border: 1px solid #ddd; border-radius: 5px; }
+        /* 하단 고정 내비게이션 바 */
+        .nav-bar { height: 65px; background: #FFFFFF; border-top: 2px solid var(--cat-dark); display: flex; justify-content: space-around; align-items: center; z-index: 100; }
+        .nav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: bold; cursor: pointer; color: #8D6E63; position: relative; flex: 1; height: 100%; }
+        .nav-item.active { color: var(--cat-dark); background-color: #FFF9C4; }
+        .nav-item .icon { font-size: 1.6rem; margin-bottom: 2px; transition: transform 0.2s; }
+        .nav-item:hover .icon { transform: scale(1.1) rotate(-5deg); }
+        
+        /* 알림 뱃지 */
+        .badge { position: absolute; top: 5px; right: 25%; background: red; color: white; border-radius: 50%; padding: 2px 6px; font-size: 0.7rem; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+
+        /* [1탭: 내 피드 UI] */
+        .my-profile-card { background: white; border: 2px solid var(--cat-dark); border-radius: 20px; padding: 15px; display: flex; align-items: center; gap: 15px; margin-bottom: 15px; box-shadow: 3px 3px 0 var(--cat-dark); }
+        .profile-img { width: 65px; height: 65px; border-radius: 50%; border: 2px solid var(--cat-dark); object-fit: cover; }
+        .feed-write-box { background: white; border: 2px solid var(--cat-dark); border-radius: 20px; padding: 12px; margin-bottom: 15px; box-shadow: 3px 3px 0 var(--cat-dark); }
+        .feed-write-box textarea { width: 100%; height: 60px; border: none; resize: none; outline: none; font-size: 0.95rem; }
+        .feed-write-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 5px; }
+        .cat-btn { background: var(--cat-main); border: 2px solid var(--cat-dark); border-radius: 15px; padding: 6px 15px; font-weight: bold; cursor: pointer; box-shadow: 2px 2px 0 var(--cat-dark); font-size: 0.85rem; }
+        .cat-btn:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0 var(--cat-dark); }
+        
+        /* 소셜 타임라인 카드 */
+        .post-card { background: white; border: 2px solid var(--cat-dark); border-radius: 20px; padding: 15px; margin-bottom: 15px; box-shadow: 3px 3px 0 var(--cat-dark); }
+        .post-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .post-img { width: 100%; border-radius: 15px; border: 2px solid var(--cat-dark); margin: 10px 0; max-height: 250px; object-fit: cover; }
+        .post-actions { display: flex; gap: 15px; margin: 10px 0 5px 0; font-weight: bold; font-size: 0.9rem; }
+        .action-item { cursor: pointer; display: flex; align-items: center; gap: 4px; }
+
+        /* 계층형 구조 댓글 창 */
+        .comments-section { border-top: 1px dashed #CCC; padding-top: 10px; margin-top: 10px; font-size: 0.85rem; }
+        .comment-item { margin-bottom: 6px; padding: 4px 0; }
+        .comment-item.reply { margin-left: 20px; border-left: 2px dotted var(--cat-dark); padding-left: 8px; background: #FFFDE7; border-radius: 4px; }
+        .reply-btn { color: #007BFF; font-size: 0.75rem; margin-left: 6px; cursor: pointer; }
+
+        /* [2탭: 친구 리스트 UI] */
+        .user-item { background: white; border: 2px solid var(--cat-dark); border-radius: 15px; padding: 12px; display: flex; align-items: center; gap: 12px; margin-bottom: 10px; box-shadow: 2px 2px 0 var(--cat-dark); cursor: pointer; position: relative; }
+        .status-fish { width: 14px; height: 14px; border-radius: 50%; position: absolute; bottom: 12px; left: 45px; border: 1px solid black; }
+        .online { background: #4CAF50; } .offline { background: #bbb; }
+
+        /* [3탭/1:1 대화창 UI] */
+        .chat-container { display: flex; flex-direction: column; height: 100%; background: #F5F5F5; border: 2px solid var(--cat-dark); border-radius: 20px; overflow: hidden; }
+        .chat-messages { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; background: #FFF9C4; }
+        .msg-row { display: flex; flex-direction: column; max-width: 85%; position: relative; }
+        .msg-row.mine { align-self: flex-end; align-items: flex-end; }
+        .msg-row.others { align-self: flex-start; }
+        .msg-bubble { padding: 10px 14px; border-radius: 18px; font-size: 0.95rem; line-height: 1.4; word-break: break-all; white-space: pre-wrap; border: 2px solid var(--cat-dark); box-shadow: 2px 2px 0 rgba(0,0,0,0.05); }
+        .mine .msg-bubble { background: var(--cat-bubble-me); border-top-right-radius: 2px; }
+        .others .msg-bubble { background: var(--cat-bubble-other); border-top-left-radius: 2px; }
+        .msg-meta { font-size: 0.7rem; color: #757575; margin-top: 2px; display: flex; gap: 5px; }
+        .read-status { color: var(--cat-accent); font-weight: bold; }
+        
+        /* 꾹꾹이 중 (타이핑) 스트리밍 바 */
+        .typing-indicator { font-size: 0.8rem; color: #795548; font-style: italic; padding: 2px 15px; background: #FFF9C4; display: none; }
+
+        /* 입력 폼 하단 고정 고도화 */
+        .chat-input-area { display: flex; padding: 10px; background: white; border-top: 2px solid var(--cat-dark); gap: 8px; align-items: center; }
+        .chat-input-area input { flex: 1; padding: 12px; border: 2px solid var(--cat-dark); border-radius: 15px; outline: none; font-size: 0.95rem; }
+
+        /* 상단 고양이 스낵바 알림 */
+        #notification-snackbar { position: fixed; top: -70px; left: 5%; width: 90%; background: var(--cat-dark); color: white; padding: 12px; border-radius: 15px; font-size: 0.9rem; font-weight: bold; z-index: 5000; box-shadow: 0 4px 10px rgba(0,0,0,0.3); border: 2px solid var(--cat-main); transition: top 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); display: flex; align-items: center; gap: 8px; }
+
+        /* 모달 팝업 레이아웃 */
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 2000; justify-content: center; align-items: center; padding: 20px; }
+        .modal-body { background: white; border: 3px solid var(--cat-dark); border-radius: 25px; width: 100%; max-width: 350px; padding: 20px; position: relative; box-shadow: 5px 5px 0 var(--cat-dark); }
+        .modal-body input, .modal-body textarea { width: 100%; padding: 10px; margin-bottom: 10px; border: 2px solid var(--cat-dark); border-radius: 12px; outline: none; }
+
+        /* 즉석 계정 시스템 인증 화면 */
+        .auth-screen { position: fixed; inset: 0; background: var(--cat-main); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 30px; }
     </style>
 </head>
 <body>
-    <!-- Auth -->
-    <div id="auth-screen" class="auth-overlay">
-        <div class="auth-box" id="login-form">
-            <h1>혁찬톡</h1>
-            <input type="text" id="auth-id" placeholder="아이디">
-            <input type="password" id="auth-pw" placeholder="비밀번호">
-            <button onclick="handleAuth('login')">로그인</button>
-            <p style="margin-top:20px; font-size:0.9rem; color:var(--kakao-brown); cursor:pointer;" onclick="toggleAuth(true)">즉석 회원가입</p>
-        </div>
-        <div class="auth-box" id="reg-form" style="display:none;">
-            <h1>가입하기</h1>
-            <input type="text" id="reg-id" placeholder="사용할 아이디">
-            <input type="password" id="reg-pw" placeholder="비밀번호">
-            <button onclick="handleAuth('register')">가입하기</button>
-            <p style="margin-top:20px; font-size:0.9rem; color:var(--kakao-brown); cursor:pointer;" onclick="toggleAuth(false)">이미 계정이 있습니다</p>
+
+    <div id="notification-snackbar">🐱 야옹! 알림이 왔다냥!</div>
+
+    <div id="auth-area" class="auth-screen">
+        <h1 style="font-size: 2.8rem; margin-bottom: 5px;">🐾 혁찬톡 🐾</h1>
+        <p style="font-weight: bold; margin-bottom: 30px; color:#4A3423;">깜찍뽀짝 고양이 집사 광장</p>
+        <div style="background:white; border:3px solid var(--cat-dark); padding:25px; border-radius:25px; width:100%; max-width:320px; box-shadow: 5px 5px 0 var(--cat-dark);">
+            <input type="text" id="auth-id" placeholder="집사 아이디 입력" style="width:100%; padding:12px; margin-bottom:10px; border:2px solid var(--cat-dark); border-radius:12px;">
+            <input type="password" id="auth-pw" placeholder="비밀번호 입력" style="width:100%; padding:12px; margin-bottom:15px; border:2px solid var(--cat-dark); border-radius:12px;">
+            <button class="cat-btn" onclick="handleAuth('login')" style="width:100%; padding:12px; margin-bottom:8px;">로그인하기냥</button>
+            <button class="cat-btn" onclick="handleAuth('register')" style="width:100%; padding:12px; background:#FFF;">즉석 가입하기🐾</button>
         </div>
     </div>
 
-    <!-- Tab Friends -->
-    <div id="tab-friends" class="tab-content active">
-        <div class="header">
-            <span>친구</span>
-            <span onclick="openEdit()" style="font-size:0.9rem; font-weight:normal;">내 프로필</span>
-        </div>
-        <div class="scroll-list" id="friend-list"></div>
-    </div>
+    <div id="app-container">
+        <div class="top-header" id="current-title">🐾 내 피드 플래닛</div>
 
-    <!-- Tab Global -->
-    <div id="tab-global" class="tab-content">
-        <div class="header">전체 채팅</div>
-        <div id="global-win" class="chat-win"></div>
-        <div class="input-box">
-            <input type="text" id="global-input" placeholder="메시지 입력..." onkeypress="if(event.keyCode==13) sendMsg('global')">
-            <button onclick="sendMsg('global')">전송</button>
-        </div>
-    </div>
-
-    <!-- Overlay Private Chat -->
-    <div id="view-private" class="overlay-view">
-        <div class="header">
-            <span onclick="closeOverlay('view-private')">◀ <span id="priv-title">친구이름</span></span>
-        </div>
-        <div id="priv-win" class="chat-win"></div>
-        <div class="input-box">
-            <input type="text" id="priv-input" placeholder="비밀 메시지..." onkeypress="if(event.keyCode==13) sendMsg('private')">
-            <button onclick="sendMsg('private')">전송</button>
-        </div>
-    </div>
-
-    <!-- Overlay Profile -->
-    <div id="view-profile" class="overlay-view">
-        <div class="header"><span onclick="closeOverlay('view-profile')">◀ 프로필</span></div>
-        <div class="profile-card">
-            <img id="v-pic" src="">
-            <h2 id="v-name" style="margin:0;"></h2>
-            <p id="v-status" style="margin:10px 0; color:gray;"></p>
-            <div id="v-bio" style="background:#f8f8f8; padding:20px; border-radius:15px; margin:20px 0; font-size:0.9rem;"></div>
-            <div class="social-stats">
-                <div class="stat-btn" onclick="likeProfile()">❤️ <span id="v-likes">0</span></div>
-                <div class="stat-btn">💬 <span id="v-comm-count">0</span></div>
-            </div>
-            <div style="text-align:left; padding:0 20px;">
-                <div style="display:flex; gap:10px; margin-bottom:20px;">
-                    <input type="text" id="comm-input" style="flex:1; padding:10px; border:1px solid #ddd; border-radius:5px;" placeholder="댓글 입력...">
-                    <button onclick="addComment()" style="background:var(--kakao-yellow); border:none; padding:0 15px; border-radius:5px;">등록</button>
+        <div id="tab-feed" class="tab-content active">
+            <div class="my-profile-card">
+                <img id="my-avatar-img" src="" class="profile-img">
+                <div style="flex:1;">
+                    <h3 id="my-profile-name" style="margin:0 0 5px 0;">집사님</h3>
+                    <p id="my-profile-status" style="margin:0; font-size:0.8rem; color:#6D4C41;"></p>
                 </div>
-                <div id="v-comments"></div>
+                <button class="cat-btn" onclick="openEditProfileModal()">수정</button>
+            </div>
+
+            <div class="feed-write-box">
+                <textarea id="feed-text" placeholder="오늘 고양이 보셨나요? 어떤 일이 있었는지 집사들에게 공유해 달라냥🐾"></textarea>
+                <div class="feed-write-actions">
+                    <input type="file" id="feed-file" accept="image/*" style="font-size: 0.75rem; max-width: 160px;">
+                    <button class="cat-btn" onclick="uploadFeedPost()">야옹 등록</button>
+                </div>
+            </div>
+            <div id="timeline-posts"></div>
+        </div>
+
+        <div id="tab-friends" class="tab-content">
+            <div id="friends-list-target"></div>
+        </div>
+
+        <div id="tab-chat" class="tab-content" style="padding:0;">
+            <div class="chat-container">
+                <div class="chat-messages" id="global-msg-win"></div>
+                <div class="typing-indicator" id="global-typing-bar">상대방이 꾹꾹이 중...</div>
+                <div class="chat-input-area">
+                    <input type="text" id="global-input" placeholder="메시지 입력하기냥..." oninput="emitTyping('global')" onkeypress="if(event.keyCode==13) sendGlobalMsg()">
+                    <button class="cat-btn" onclick="sendGlobalMsg()">전송</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="private-chat-layer" style="display:none; position:absolute; top:50px; left:0; width:100%; height:calc(100% - 115px); background:white; z-index:500;">
+            <div class="chat-container">
+                <div style="background:#FFF9C4; padding:8px 15px; border-bottom:1px dashed var(--cat-dark); font-weight:bold; display:flex; justify-content:space-between; align-items:center;">
+                    <span id="private-room-title">1:1 비밀 대화</span>
+                    <button class="cat-btn" style="padding:3px 10px; font-size:0.75rem;" onclick="closePrivateChat()">닫기🐾</button>
+                </div>
+                <div class="chat-messages" id="private-msg-win"></div>
+                <div class="typing-indicator" id="private-typing-bar">상대방이 꾹꾹이 중...</div>
+                <div class="chat-input-area">
+                    <input type="text" id="private-input" placeholder="비밀 메시지 입력..." oninput="emitTyping('private')" onkeypress="if(event.keyCode==13) sendPrivateMsg()">
+                    <button class="cat-btn" onclick="sendPrivateMsg()">전송</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="nav-bar">
+            <div class="nav-item active" onclick="switchTab('feed', '🐾 내 피드 플래닛', this)">
+                <span class="icon">🐱</span>
+                <span>내 피드</span>
+            </div>
+            <div class="nav-item" onclick="switchTab('friends', '🐾 집사 친구 목록', this)">
+                <span class="icon">🐾</span>
+                <span>친구 목록</span>
+                <span class="badge" id="badge-friends" style="display:none;">0</span>
+            </div>
+            <div class="nav-item" onclick="switchTab('chat', '🐾 냥냥 광장 전체채팅', this)">
+                <span class="icon">🐟</span>
+                <span>전체 채팅</span>
+                <span class="badge" id="badge-chat" style="display:none;">0</span>
             </div>
         </div>
     </div>
 
-    <!-- Bottom Nav -->
-    <div class="bottom-nav">
-        <div class="nav-item active" onclick="switchTab('friends')">
-            <span class="nav-icon">👤</span>
-            <span>친구</span>
-            <div class="badge" id="badge-friends">0</div>
-        </div>
-        <div class="nav-item" onclick="switchTab('global')">
-            <span class="nav-icon">💬</span>
-            <span>전체채팅</span>
-            <div class="badge" id="badge-global">0</div>
+    <div id="modal-edit-profile" class="modal-overlay">
+        <div class="modal-body">
+            <h3>🐾 집사 정보 수정</h3>
+            <input type="file" id="edit-pic-file" accept="image/*">
+            <input type="text" id="edit-name-input" placeholder="새로운 집사 닉네임">
+            <input type="text" id="edit-status-input" placeholder="상태 메시지냥">
+            <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:10px;">
+                <button class="cat-btn" onclick="saveProfileData()">저장한다냥</button>
+                <button class="cat-btn" style="background:#eee;" onclick="closeModal('modal-edit-profile')">취소</button>
+            </div>
         </div>
     </div>
 
-    <!-- Edit Modal -->
-    <div id="edit-modal" class="modal">
-        <div class="modal-content">
-            <h3 style="margin-top:0;">프로필 수정</h3>
-            <input type="file" id="p-pic" accept="image/*">
-            <input type="text" id="p-name" placeholder="닉네임">
-            <input type="text" id="p-status" placeholder="상태 메시지">
-            <textarea id="p-bio" rows="3" placeholder="자기소개"></textarea>
-            <div style="display:flex; gap:10px;">
-                <button onclick="saveProfile()" style="flex:1; background:var(--kakao-yellow); border:none; padding:12px; border-radius:5px;">저장</button>
-                <button onclick="closeModal('edit-modal')" style="flex:1; background:#eee; border:none; padding:12px; border-radius:5px;">닫기</button>
+    <div id="modal-friend-profile" class="modal-overlay">
+        <div class="modal-body" style="max-height:85vh; overflow-y:auto;">
+            <center>
+                <img id="f-modal-pic" src="" style="width:90px; height:90px; border-radius:50%; border:2px solid var(--cat-dark); object-fit:cover;">
+                <h3 id="f-modal-name" style="margin:5px 0;"></h3>
+                <p id="f-modal-status" style="color:gray; font-size:0.85rem; margin-bottom:10px;"></p>
+                <div style="font-weight:bold; color:red; cursor:pointer; margin-bottom:15px;" id="f-modal-like-btn">🐾 하트 꾹꾹이 보낸 집사: <span id="f-modal-likes-count">0</span>명</div>
+            </center>
+            
+            <div style="border-top:1px solid #ddd; padding-top:10px;">
+                <h4 style="margin:0 0 5px 0;">💬 냥냥 방명록</h4>
+                <div id="f-modal-comments" style="font-size:0.85rem; max-height:150px; overflow-y:auto; margin-bottom:10px; background:#f9f9f9; padding:5px; border-radius:8px;"></div>
+                <div style="display:flex; gap:5px;">
+                    <input type="text" id="f-comment-input" placeholder="댓글 내용을 남겨라냥..." style="flex:1; margin:0; font-size:0.8rem;">
+                    <button class="cat-btn" id="f-comment-submit-btn" style="padding:4px 10px; font-size:0.8rem;">등록</button>
+                </div>
+            </div>
+
+            <div style="display:flex; gap:10px; margin-top:20px; justify-content:center;">
+                <button class="cat-btn" id="f-modal-chat-trigger" style="width:100%; padding:10px;">🐾 1:1 냥냥 채팅하기</button>
+                <button class="cat-btn" style="background:#eee;" onclick="closeModal('modal-friend-profile')">닫기</button>
             </div>
         </div>
     </div>
 
     <script>
         const socket = io();
-        let myId = '', myData = null, curTarget = null, curTab = 'friends';
-        let unread = { global: 0, privateUsers: new Set() };
+        let myInfo = null;
+        let allUsers = [];
+        let unreadGlobalMessages = 0;
+        let activeTab = 'feed';
+        let currentPrivateTargetId = null;
+        let currentPrivateRoom = null;
+        let typingTimeout = null;
 
-        function toggleAuth(isReg) {
-            document.getElementById('login-form').style.display = isReg ? 'none' : 'block';
-            document.getElementById('reg-form').style.display = isReg ? 'block' : 'none';
-        }
+        function handleAuth(type) {
+            const id = document.getElementById('auth-id').value.trim();
+            const password = document.getElementById('auth-pw').value.trim();
+            if(!id || !password) return alert('빈칸을 채우라냥!');
 
-        async function handleAuth(type) {
-            const id = document.getElementById(type === 'login' ? 'auth-id' : 'reg-id').value;
-            const pw = document.getElementById(type === 'login' ? 'auth-pw' : 'reg-pw').value;
-            if(!id || !pw) return alert('입력해주세요!');
-            const r = await fetch(`/api/${type}`, {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({id, password: pw})
+            fetch('/api/' + type, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, password })
+            }).then(res => res.json()).then(data => {
+                if(data.success) {
+                    if(type === 'login') {
+                        myInfo = data.user;
+                        document.getElementById('auth-area').style.display = 'none';
+                        socket.emit('join', myInfo.id);
+                        updateMyProfileUI();
+                        // 오디오 효과 설정 대체 시각 처리 알림
+                        showNotificationSnackbar('🐾 냐옹! 냥찬톡 네트워크에 접속했다냥!');
+                    } else {
+                        alert('가입 완료되었다냥! 로그인을 진행해라냥🐾');
+                    }
+                } else {
+                    alert(data.msg);
+                }
             });
-            const d = await r.json();
-            if(d.success) {
-                if(type === 'login') {
-                    myId = id; myData = d.user;
-                    document.getElementById('auth-screen').style.display = 'none';
-                    startApp();
-                } else { alert('가입 성공!'); toggleAuth(false); }
-            } else alert(d.msg);
         }
 
-        function startApp() {
-            socket.emit('join', myId);
-            setInterval(() => socket.emit('heartbeat'), 10000);
-            switchTab('friends');
+        function updateMyProfileUI() {
+            document.getElementById('my-avatar-img').src = myInfo.profilePic;
+            document.getElementById('my-profile-name').innerText = myInfo.name;
+            document.getElementById('my-profile-status').innerText = myInfo.statusMsg;
         }
 
-        function updateBadges() {
-            const gb = document.getElementById('badge-global');
-            gb.innerText = unread.global;
-            gb.style.display = unread.global > 0 ? 'block' : 'none';
+        function switchTab(tabId, title, element) {
+            activeTab = tabId;
+            document.getElementById('current-title').innerText = title;
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            
+            document.getElementById('tab-' + tabId).classList.add('active');
+            element.classList.add('active');
 
-            const fb = document.getElementById('badge-friends');
-            const pCount = unread.privateUsers.size;
-            fb.innerText = pCount;
-            fb.style.display = pCount > 0 ? 'block' : 'none';
+            if(tabId === 'chat') {
+                unreadGlobalMessages = 0;
+                document.getElementById('badge-chat').style.display = 'none';
+                socket.emit('switch_room', { userId: myInfo.id, room: 'global' });
+                scrollSmoothToBottom('global-msg-win');
+            } else {
+                if(currentPrivateRoom === null) {
+                    socket.emit('switch_room', { userId: myInfo.id, room: null });
+                }
+            }
         }
 
-        function switchTab(name) {
-            curTab = name;
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-            document.getElementById(`tab-${name}`).classList.add('active');
-            const idx = name === 'friends' ? 0 : 1;
-            document.querySelectorAll('.nav-item')[idx].classList.add('active');
-            if(name === 'global') { unread.global = 0; updateBadges(); }
+        function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+        function openEditProfileModal() {
+            document.getElementById('edit-name-input').value = myInfo.name;
+            document.getElementById('edit-status-input').value = myInfo.statusMsg;
+            openModal('modal-edit-profile');
         }
 
-        function openOverlay(id) { document.getElementById(id).classList.add('active'); }
-        function closeOverlay(id) { 
-            document.getElementById(id).classList.remove('active'); 
-            if(id === 'view-private') { unread.privateUsers.delete(curTarget.id); updateBadges(); }
-            curTarget = null; 
+        function saveProfileData() {
+            const fileInput = document.getElementById('edit-pic-file');
+            const name = document.getElementById('edit-name-input').value.trim();
+            const statusMsg = document.getElementById('edit-status-input').value.trim();
+
+            const formData = new FormData();
+            formData.append('id', myInfo.id);
+            formData.append('name', name);
+            formData.append('statusMsg', statusMsg);
+            if(fileInput.files[0]) formData.append('profile_pic', fileInput.files[0]);
+
+            fetch('/api/profile', { method: 'POST', body: formData })
+            .then(res => res.json()).then(data => {
+                if(data.success) {
+                    myInfo = data.user;
+                    updateMyProfileUI();
+                    closeModal('modal-edit-profile');
+                }
+            });
         }
 
-        function sendMsg(type) {
-            const input = document.getElementById(type === 'global' ? 'global-input' : 'priv-input');
+        function uploadFeedPost() {
+            const text = document.getElementById('feed-text').value.trim();
+            const fileInput = document.getElementById('feed-file');
+            if(!text && !fileInput.files[0]) return alert('올릴 내용이 없다냥!');
+
+            const formData = new FormData();
+            formData.append('authorId', myInfo.id);
+            formData.append('text', text);
+            if(fileInput.files[0]) formData.append('post_img', fileInput.files[0]);
+
+            fetch('/api/posts', { method: 'POST', body: formData })
+            .then(res => res.json()).then(data => {
+                if(data.success) {
+                    document.getElementById('feed-text').value = '';
+                    document.getElementById('feed-file').value = '';
+                }
+            });
+        }
+
+        function renderPosts(postsData) {
+            const container = document.getElementById('timeline-posts');
+            container.innerHTML = '';
+            postsData.forEach(post => {
+                const isLiked = post.likes.includes(myInfo.id);
+                const card = document.createElement('div');
+                card.className = 'post-card';
+                card.innerHTML = `
+                    <div class="post-header">
+                        <img src="${post.authorPic}" class="profile-img" style="width:40px; height:40px;">
+                        <div>
+                            <strong>${post.authorName}</strong>
+                            <div style="font-size:0.75rem; color:gray;">${post.timestamp}</div>
+                        </div>
+                    </div>
+                    <div style="font-size:0.95rem; margin:10px 0; word-break:break-all; white-space:pre-wrap;">${post.text}</div>
+                    ${post.image ? `<img src="${post.image}" class="post-img">` : ''}
+                    <div class="post-actions">
+                        <div class="action-item" onclick="triggerLike('post', null, '${post.id}')">${isLiked?'❤️':'🤍'} 좋아요(${post.likes.length})</div>
+                    </div>
+                    <div class="comments-section" id="post-comments-${post.id}"></div>
+                    <div style="display:flex; gap:5px; margin-top:8px;">
+                        <input type="text" id="input-cmt-${post.id}" placeholder="댓글 달기냥..." style="flex:1; border:1px solid var(--cat-dark); border-radius:10px; padding:5px; font-size:0.8rem;">
+                        <button class="cat-btn" style="padding:3px 10px; font-size:0.8rem;" onclick="submitComment('post', null, '${post.id}', null)">등록</button>
+                    </div>
+                `;
+                container.appendChild(card);
+                renderNestedComments(post.comments, `post-comments-${post.id}`, post.id);
+            });
+        }
+
+        function renderNestedComments(comments, containerId, postId, type='post') {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            
+            // 일반 댓글 리스트 정렬
+            const mainComments = comments.filter(c => c.parentId === null);
+            mainComments.forEach(parent => {
+                const div = document.createElement('div');
+                div.className = 'comment-item';
+                div.innerHTML = `
+                    <strong>${parent.authorName}:</strong> <span>${parent.text}</span>
+                    <span class="reply-btn" onclick="setupReplyInput('${containerId}', '${parent.id}', '${postId}', '${type}')">↳답글</span>
+                `;
+                container.appendChild(div);
+
+                // 대댓글 렌더링
+                const replies = comments.filter(c => c.parentId === parent.id);
+                replies.forEach(child => {
+                    const rDiv = document.createElement('div');
+                    rDiv.className = 'comment-item reply';
+                    rDiv.innerHTML = `<strong>${child.authorName}:</strong> <span>${child.text}</span>`;
+                    container.appendChild(rDiv);
+                });
+            });
+        }
+
+        function setupReplyInput(containerId, parentId, postId, type) {
+            const container = document.getElementById(containerId);
+            const existInput = document.getElementById('reply-temp-form');
+            if(existInput) existInput.remove();
+
+            const form = document.createElement('div');
+            form.id = 'reply-temp-form';
+            form.style = 'display:flex; gap:5px; margin: 5px 0 5px 20px;';
+            form.innerHTML = `
+                <input type="text" id="reply-text-field" placeholder="답글 입력..." style="flex:1; font-size:0.75rem; border:1px solid #ccc; border-radius:8px; padding:4px;">
+                <button class="cat-btn" style="padding:2px 8px; font-size:0.75rem;" onclick="submitComment('${type}', ${type==='profile'?'currentPrivateTargetId':null}, '${postId}', '${parentId}')">완료</button>
+            `;
+            container.appendChild(form);
+        }
+
+        function triggerLike(type, targetId, postId) {
+            socket.emit('like_event', { type, targetId, userId: myInfo.id, postId });
+        }
+
+        function submitComment(type, targetId, postId, parentId) {
+            let textField;
+            if(parentId) {
+                textField = document.getElementById('reply-text-field');
+            } else {
+                textField = (type === 'post') ? document.getElementById(`input-cmt-${postId}`) : document.getElementById('f-comment-input');
+            }
+            
+            const text = textField.value.trim();
+            if(!text) return;
+
+            socket.emit('comment_event', { type, targetId, userId: myInfo.id, postId, text, parentId });
+            textField.value = '';
+            if(parentId) {
+                const temp = document.getElementById('reply-temp-form');
+                if(temp) temp.remove();
+            }
+        }
+
+        function showFriendProfile(userId) {
+            const user = allUsers.find(u => u.id === userId);
+            if(!user) return;
+            currentPrivateTargetId = userId;
+
+            document.getElementById('f-modal-pic').src = user.profilePic;
+            document.getElementById('f-modal-name').innerText = user.name;
+            document.getElementById('f-modal-status').innerText = user.statusMsg;
+            document.getElementById('f-modal-likes-count').innerText = user.likes.length;
+
+            document.getElementById('f-modal-like-btn').onclick = () => triggerLike('profile', userId, null);
+            document.getElementById('f-comment-submit-btn').onclick = () => submitComment('profile', userId, null, null);
+
+            renderNestedComments(user.comments, 'f-modal-comments', null, 'profile');
+
+            document.getElementById('f-modal-chat-trigger').onclick = () => {
+                closeModal('modal-friend-profile');
+                openPrivateChat(user);
+            };
+
+            openModal('modal-friend-profile');
+        }
+
+        function openPrivateChat(targetUser) {
+            currentPrivateTargetId = targetUser.id;
+            currentPrivateRoom = [myInfo.id, targetUser.id].sort().join('-');
+            
+            document.getElementById('private-room-title').innerText = `🐾 ${targetUser.name} 집사님과 비밀 대화`;
+            document.getElementById('private-msg-win').innerHTML = '';
+            document.getElementById('private-chat-layer').style.display = 'block';
+            
+            socket.emit('switch_room', { userId: myInfo.id, room: currentPrivateRoom });
+        }
+
+        function closePrivateChat() {
+            document.getElementById('private-chat-layer').style.display = 'none';
+            currentPrivateRoom = null;
+            currentPrivateTargetId = null;
+            socket.emit('switch_room', { userId: myInfo.id, room: activeTab === 'chat' ? 'global' : null });
+        }
+
+        function sendGlobalMsg() {
+            const input = document.getElementById('global-input');
             const text = input.value.trim();
             if(!text) return;
-            if(type === 'global') socket.emit('send_global', { text });
-            else socket.emit('send_private', { to: curTarget.id, text });
+            socket.emit('send_global', { senderId: myInfo.id, text });
             input.value = '';
         }
 
-        socket.on('new_global', m => {
-            appendMsg('global-win', m);
-            if(curTab !== 'global') { unread.global++; updateBadges(); }
-        });
+        function sendPrivateMsg() {
+            const input = document.getElementById('private-input');
+            const text = input.value.trim();
+            if(!text) return;
+            socket.emit('send_private', { senderId: myInfo.id, targetId: currentPrivateTargetId, text });
+            input.value = '';
+        }
 
-        socket.on('init_private', msgs => {
-            const win = document.getElementById('priv-win'); win.innerHTML = '';
-            msgs.forEach(m => appendMsg('priv-win', m));
-        });
+        function emitTyping(type) {
+            socket.emit('typing', { senderId: myInfo.id, senderName: myInfo.name, type, room: type==='private'?currentPrivateRoom:'global' });
+        }
 
-        socket.on('new_private', m => appendMsg('priv-win', m));
+        function showNotificationSnackbar(msg) {
+            const bar = document.getElementById('notification-snackbar');
+            bar.innerText = msg;
+            bar.style.top = '15px';
+            setTimeout(() => { bar.style.top = '-70px'; }, 3500);
+        }
 
-        socket.on('private_notif', n => {
-            if(!curTarget || curTarget.id !== n.from) {
-                unread.privateUsers.add(n.from);
-                updateBadges();
+        function scrollSmoothToBottom(id) {
+            const div = document.getElementById(id);
+            div.scrollTop = div.scrollHeight;
+        }
+
+        // 소켓 이벤트 바인딩 데이터 분기 처리 구조
+        socket.on('user_list', (usersList) => {
+            allUsers = usersList;
+            const container = document.getElementById('friends-list-target');
+            container.innerHTML = '';
+
+            let privateTotalUnreadFriends = 0;
+
+            usersList.forEach(u => {
+                if(u.id === myInfo.id) {
+                    // 내 소셜 동기화 처리
+                    myInfo.likes = u.likes;
+                    myInfo.comments = u.comments;
+                    if(document.getElementById('modal-friend-profile').style.display === 'flex' && currentPrivateTargetId === myInfo.id) {
+                        showFriendProfile(myInfo.id);
+                    }
+                    return;
+                }
+
+                if(u.unreadPrivateCount > 0) privateTotalUnreadFriends++;
+
+                const row = document.createElement('div');
+                row.className = 'user-item';
+                row.onclick = () => showFriendProfile(u.id);
+                row.innerHTML = `
+                    <img src="${u.profilePic}" class="profile-img" style="width:45px; height:45px;">
+                    <div class="status-fish ${u.active?'online':'offline'}"></div>
+                    <div style="flex:1;">
+                        <strong>${u.name}</strong> ${u.unreadPrivateCount > 0 ? `<span style="background:red; color:white; border-radius:50%; padding:1px 5px; font-size:0.7rem;">${u.unreadPrivateCount}</span>`:''}
+                        <div style="font-size:0.75rem; color:gray;">${u.statusMsg}</div>
+                    </div>
+                `;
+                container.appendChild(row);
+
+                // 실시간 친구 모달 활성화 시 방명록 리프레시 대응
+                if(document.getElementById('modal-friend-profile').style.display === 'flex' && currentPrivateTargetId === u.id) {
+                    document.getElementById('f-modal-likes-count').innerText = u.likes.length;
+                    renderNestedComments(u.comments, 'f-modal-comments', null, 'profile');
+                }
+            });
+
+            // 친구 알림 뱃지 가시화
+            const fBadge = document.getElementById('badge-friends');
+            if(privateTotalUnreadFriends > 0) {
+                fBadge.innerText = privateTotalUnreadFriends;
+                fBadge.style.display = 'block';
+            } else {
+                fBadge.style.display = 'none';
             }
         });
 
-        function appendMsg(winId, m) {
-            const win = document.getElementById(winId);
-            const isMine = (m.user === myId || m.from === myId);
-            const row = document.createElement('div');
-            row.className = `msg-row ${isMine ? 'mine' : 'others'}`;
-            row.innerHTML = `
-                ${!isMine && winId === 'global-win' ? `<div class="msg-sender">${m.name}</div>` : ''}
-                <div class="msg-bubble">${m.text}</div>
-                <div class="msg-time">${m.time}</div>
-            `;
-            win.appendChild(row);
-            win.scrollTop = win.scrollHeight;
-        }
+        socket.on('update_posts', (postsData) => { renderPosts(postsData); });
 
-        socket.on('user_list', (users) => {
-            const list = document.getElementById('friend-list');
-            list.innerHTML = '';
-            users.forEach(u => {
-                if(u.id === myId) { myData = u; return; }
-                const div = document.createElement('div');
-                div.className = 'user-item';
-                div.innerHTML = `
-                    <div class="avatar-wrap" onclick="showProfile('${u.id}', event)">
-                        <img src="${u.profilePic}" class="item-avatar">
-                        <div class="status-dot ${u.active ? 'online' : ''}"></div>
-                    </div>
-                    <div class="user-info" onclick="startPrivateChat('${u.id}')">
-                        <strong>${u.name}</strong>
-                        <small>${u.statusMsg}</small>
-                    </div>
-                `;
-                list.appendChild(div);
-                if(curTarget && curTarget.id === u.id) refreshProfile(u);
-            });
+        socket.on('init_global_chat', (msgs) => {
+            const win = document.getElementById('global-msg-win');
+            win.innerHTML = '';
+            msgs.forEach(appendGlobalMsgHTML);
+            scrollSmoothToBottom('global-msg-win');
         });
 
-        window.showProfile = function(uid, e) {
-            if(e) e.stopPropagation();
-            socket.on('user_list', function finder(users) {
-                const u = users.find(user => user.id === uid);
-                if(u) { curTarget = u; refreshProfile(u); openOverlay('view-profile'); }
-                socket.off('user_list', finder);
-            });
-            socket.emit('heartbeat');
-        };
+        socket.on('receive_global', (msg) => {
+            appendGlobalMsgHTML(msg);
+            scrollSmoothToBottom('global-msg-win');
+            if(activeTab !== 'chat') {
+                unreadGlobalMessages++;
+                const cBadge = document.getElementById('badge-chat');
+                cBadge.innerText = unreadGlobalMessages;
+                cBadge.style.display = 'block';
+            }
+        });
 
-        function refreshProfile(u) {
-            document.getElementById('v-pic').src = u.profilePic;
-            document.getElementById('v-name').innerText = u.name;
-            document.getElementById('v-status').innerText = u.statusMsg;
-            document.getElementById('v-bio').innerText = u.bio;
-            document.getElementById('v-likes').innerText = u.likes.length;
-            document.getElementById('v-comm-count').innerText = u.comments.length;
-            const cList = document.getElementById('v-comments');
-            cList.innerHTML = '';
-            u.comments.forEach(c => {
-                const div = document.createElement('div');
-                div.className = 'comment-item';
-                div.innerHTML = `<strong>${c.authorName}:</strong> ${c.text}`;
-                cList.appendChild(div);
-            });
+        function appendGlobalMsgHTML(msg) {
+            const win = document.getElementById('global-msg-win');
+            const isMe = msg.senderId === myInfo.id;
+            const row = document.createElement('div');
+            row.className = `msg-row ${isMe?'mine':'others'}`;
+            row.innerHTML = `
+                ${!isMe ? `<span style="font-size:0.75rem; font-weight:bold; margin-bottom:2px;">${msg.senderName}</span>`:''}
+                <div class="msg-bubble">${msg.text}</div>
+                <div class="msg-meta"><span>${msg.timestamp}</span></div>
+            `;
+            win.appendChild(row);
         }
 
-        function startPrivateChat(uid) {
-            socket.on('user_list', function finder(users) {
-                const u = users.find(user => user.id === uid);
-                if(u) {
-                    curTarget = u;
-                    document.getElementById('priv-title').innerText = u.name;
-                    socket.emit('join_private', uid);
-                    openOverlay('view-private');
-                }
-                socket.off('user_list', finder);
-            });
-            socket.emit('heartbeat');
+        socket.on('update_private_chat', (msgs) => {
+            const win = document.getElementById('private-msg-win');
+            win.innerHTML = '';
+            msgs.forEach(appendPrivateMsgHTML);
+            scrollSmoothToBottom('private-msg-win');
+        });
+
+        socket.on('receive_private', (msg) => {
+            if(currentPrivateRoom === msg.room) {
+                // 실시간 읽음 감지 처리로 소켓 응답 전송
+                if(!msg.readBy.includes(myInfo.id)) msg.readBy.push(myInfo.id);
+                appendPrivateMsgHTML(msg);
+                scrollSmoothToBottom('private-msg-win');
+            }
+        });
+
+        function appendPrivateMsgHTML(msg) {
+            const win = document.getElementById('private-msg-win');
+            const isMe = msg.senderId === myInfo.id;
+            const row = document.createElement('div');
+            row.className = `msg-row ${isMe?'mine':'others'}`;
+            
+            // 1대1 대화방 실시간 읽음 표시 로직 연동
+            const isRead = msg.readBy.length >= 2;
+            const readIndicator = isMe ? `<span class="read-status">${isRead?'':'1'}</span>` : '';
+
+            row.innerHTML = `
+                <div class="msg-bubble">${msg.text}</div>
+                <div class="msg-meta">${readIndicator} <span>${msg.timestamp}</span></div>
+            `;
+            win.appendChild(row);
         }
 
-        function likeProfile() { if(curTarget) socket.emit('like_profile', curTarget.id); }
-        function addComment() {
-            const t = document.getElementById('comm-input').value;
-            if(!t || !curTarget) return;
-            socket.emit('add_comment', { targetId: curTarget.id, text: t });
-            document.getElementById('comm-input').value = '';
-        }
+        socket.on('display_typing', (data) => {
+            if(data.senderId === myInfo.id) return;
+            if(data.type === 'global' && activeTab === 'chat') {
+                const targetBar = document.getElementById('global-typing-bar');
+                targetBar.innerText = `🐾 ${data.senderName}님이 꾹꾹이 중(입력 중)...`;
+                targetBar.style.display = 'block';
+                clearTimeout(typingTimeout);
+                typingTimeout = setTimeout(() => { targetBar.style.display = 'none'; }, 2000);
+            } else if(data.type === 'private' && currentPrivateRoom === data.room) {
+                const targetBar = document.getElementById('private-typing-bar');
+                targetBar.innerText = `🐾 ${data.senderName}님이 비밀 꾹꾹이 중...`;
+                targetBar.style.display = 'block';
+                clearTimeout(typingTimeout);
+                typingTimeout = setTimeout(() => { targetBar.style.display = 'none'; }, 2000);
+            }
+        });
 
-        function openEdit() {
-            document.getElementById('p-name').value = myData.name;
-            document.getElementById('p-status').value = myData.statusMsg;
-            document.getElementById('p-bio').value = myData.bio;
-            document.getElementById('edit-modal').style.display = 'flex';
-        }
-        function saveProfile() {
-            const fd = new FormData();
-            fd.append('id', myId);
-            fd.append('name', document.getElementById('p-name').value);
-            fd.append('statusMsg', document.getElementById('p-status').value);
-            fd.append('bio', document.getElementById('p-bio').value);
-            const pic = document.getElementById('p-pic').files[0];
-            if(pic) fd.append('profile_pic', pic);
-            fetch('/api/profile', { method: 'POST', body: fd }).then(() => {
-                closeModal('edit-modal'); socket.emit('join', myId);
-            });
-        }
-        function openModal(id) { document.getElementById(id).style.display = 'flex'; }
-        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+        socket.on('push_notification', (data) => {
+            if(myInfo && data.targetId === myInfo.id) {
+                showNotificationSnackbar(data.body);
+            }
+        });
     </script>
 </body>
 </html>
