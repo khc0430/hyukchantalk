@@ -1,6 +1,3 @@
-import eventlet
-eventlet.monkey_patch()
-
 import os
 import time
 from flask import Flask, render_template, request, session, redirect, url_for, jsonify
@@ -13,7 +10,7 @@ from datetime import datetime
 app = Flask(__name__)
 app.secret_key = 'hyukchan_secret_key'
 
-# 데이터베이스 및 파일 경로 설정
+# 데이터베이스 경로 설정
 basedir = os.path.abspath(os.path.dirname(__file__))
 db_uri = os.environ.get('DATABASE_URL')
 if db_uri and db_uri.startswith("postgres://"):
@@ -24,10 +21,9 @@ app.config['UPLOAD_FOLDER'] = os.path.join(basedir, 'static', 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
 db = SQLAlchemy(app)
-# 서버 환경에 맞춰 최적화
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+# eventlet 대신 threading 방식을 사용하여 충돌 방지
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
-# 모델 정의
 class User(db.Model):
     id = db.Column(db.String(50), primary_key=True)
     password = db.Column(db.String(200), nullable=False)
@@ -83,12 +79,7 @@ def register():
         password = request.form.get('password')
         if db.session.get(User, user_id):
             return '<script>alert("이미 존재하는 아이디입니다."); history.back();</script>'
-
-        new_user = User(
-            id=user_id,
-            password=generate_password_hash(password),
-            name=user_id
-        )
+        new_user = User(id=user_id, password=generate_password_hash(password), name=user_id)
         db.session.add(new_user)
         db.session.commit()
         return f'<script>alert("가입 성공!"); location.href="{url_for("login")}";</script>'
@@ -129,18 +120,11 @@ def logout():
     session.clear()
     return redirect(url_for('login'))
 
-# SocketIO Events
 @socketio.on('join_global')
 def on_join_global():
     join_room('global')
     messages = Message.query.filter_by(receiver_id=None).order_by(Message.timestamp.desc()).limit(50).all()
-    msg_list = [{
-        'user': m.sender_id,
-        'name': db.session.get(User, m.sender_id).name,
-        'text': m.text,
-        'profile_pic': db.session.get(User, m.sender_id).profile_pic,
-        'time': m.timestamp.strftime('%H:%M')
-    } for m in reversed(messages)]
+    msg_list = [{'user': m.sender_id, 'name': db.session.get(User, m.sender_id).name, 'text': m.text, 'profile_pic': db.session.get(User, m.sender_id).profile_pic, 'time': m.timestamp.strftime('%H:%M')} for m in reversed(messages)]
     emit('init_messages', msg_list)
 
 @socketio.on('send_global')
@@ -150,10 +134,7 @@ def on_send_global(data):
     new_msg = Message(sender_id=uid, text=data['text'])
     db.session.add(new_msg)
     db.session.commit()
-    emit('new_message', {
-        'user': uid, 'name': user.name, 'text': data['text'],
-        'profile_pic': user.profile_pic, 'time': datetime.utcnow().strftime('%H:%M')
-    }, room='global')
+    emit('new_message', {'user': uid, 'name': user.name, 'text': data['text'], 'profile_pic': user.profile_pic, 'time': datetime.utcnow().strftime('%H:%M')}, room='global')
 
 @socketio.on('join_private')
 def on_join_private(data):
@@ -161,10 +142,7 @@ def on_join_private(data):
     target_id = data['target_id']
     room = "-".join(sorted([my_id, target_id]))
     join_room(room)
-    messages = Message.query.filter(
-        ((Message.sender_id == my_id) & (Message.receiver_id == target_id)) |
-        ((Message.sender_id == target_id) & (Message.receiver_id == my_id))
-    ).order_by(Message.timestamp.desc()).limit(50).all()
+    messages = Message.query.filter(((Message.sender_id == my_id) & (Message.receiver_id == target_id)) | ((Message.sender_id == target_id) & (Message.receiver_id == my_id))).order_by(Message.timestamp.desc()).limit(50).all()
     msg_list = [{'from': m.sender_id, 'to': m.receiver_id, 'text': m.text, 'time': m.timestamp.strftime('%H:%M')} for m in reversed(messages)]
     emit('init_messages', msg_list)
 
@@ -182,6 +160,6 @@ with app.app_context():
     db.create_all()
 
 if __name__ == '__main__':
-    # Render의 포트 번호를 환경 변수에서 가져옴
     port = int(os.environ.get('PORT', 10000))
-    socketio.run(app, host='0.0.0.0', port=port)
+    # debug=False로 설정하여 더 안정적으로 실행
+    socketio.run(app, host='0.0.0.0', port=port, debug=False)
