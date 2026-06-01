@@ -3,99 +3,107 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>혁찬톡 🐾 고양이 천국</title>
+    <title>혁찬톡 🐾 인스타+카톡 하이브리드</title>
     <style>
-        /* 🎨 고양이 테마 CSS */
         @import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
         
         :root {
-            --bg-color: #FFF9E6; /* 파스텔톤 노란색 */
-            --text-color: #5C4033; /* 발바닥 갈색 */
-            --point-color: #FFD700;
-            --bubble-my: #FFEB99;
-            --bubble-other: #FFFFFF;
+            --bg-color: #FFF9E6; --text-color: #5C4033; --point-color: #FFD700;
+            --bubble-my: #FFEB99; --bubble-other: #FFFFFF;
+            --border-light: rgba(92, 64, 51, 0.1);
         }
 
         * { box-sizing: border-box; font-family: 'Jua', sans-serif; color: var(--text-color); margin: 0; padding: 0; }
-        
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #E6C280; border-radius: 10px; }
+
         body {
             background-color: var(--bg-color);
-            background-image: url('data:image/svg+xml;utf8,<svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><path d="M10 20c-2 0-3-1-3-3s1-3 3-3 3 1 3 3-1 3-3 3zm20 0c-2 0-3-1-3-3s1-3 3-3 3 1 3 3-1 3-3 3zm-10 5c-3 0-5-2-5-4 0-1 2-2 5-2s5 1 5 2c0 2-2 4-5 4z" fill="%23FFEB99" fill-opacity="0.5"/></svg>');
+            background-image: url('data:image/svg+xml;utf8,<svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><path d="M10 20c-2 0-3-1-3-3s1-3 3-3 3 1 3 3-1 3-3 3zm20 0c-2 0-3-1-3-3s1-3 3-3 3 1 3 3-1 3-3 3zm-10 5c-3 0-5-2-5-4 0-1 2-2 5-2s5 1 5 2c0 2-2 4-5 4z" fill="%23FFEB99" fill-opacity="0.4"/></svg>');
             display: flex; flex-direction: column; height: 100dvh; overflow: hidden;
         }
 
-        /* 로그인 / 앱 컨테이너 */
         #login-screen, #app-screen { width: 100%; height: 100%; position: absolute; top: 0; left: 0; background: inherit; }
         #app-screen { display: none; flex-direction: column; }
 
-        /* 로그인 폼 */
-        .login-box { padding: 40px 20px; text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: center; }
-        .login-box h1 { font-size: 2.5rem; margin-bottom: 20px; }
-        input[type="text"], input[type="password"] {
-            width: 100%; padding: 15px; margin-bottom: 10px; border: 2px solid #E6C280; border-radius: 20px; outline: none; font-size: 1.1rem;
-        }
-        button { background: var(--text-color); color: var(--bg-color); border: none; padding: 15px; border-radius: 20px; font-size: 1.2rem; cursor: pointer; width: 100%; margin-bottom: 10px; transition: 0.2s; }
-        button:active { transform: scale(0.95); }
+        /* 🔐 로그인 뷰 */
+        .login-box { padding: 40px; text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: center; max-width: 500px; margin: 0 auto; }
+        .login-box h1 { font-size: 3rem; margin-bottom: 30px; text-shadow: 2px 2px 0px #FFD700; animation: bounce 2s infinite; }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+        .input-group input { width: 100%; padding: 18px; margin-bottom: 12px; border: 2px solid #E6C280; border-radius: 20px; font-size: 1.1rem; outline: none; transition: 0.3s; }
+        .input-group input:focus { border-color: var(--text-color); box-shadow: 0 0 10px rgba(230, 194, 128, 0.5); }
+        .btn-main { background: var(--text-color); color: var(--bg-color); border: none; padding: 18px; border-radius: 20px; font-size: 1.3rem; cursor: pointer; width: 100%; margin-bottom: 10px; transition: transform 0.1s; }
+        .btn-main:active { transform: scale(0.96); }
+        .btn-sub { background: #E6C280; color: var(--text-color); }
+
+        /* 📱 탭 레이아웃 */
+        .tab-content { flex: 1; overflow-y: auto; padding: 15px; display: none; padding-bottom: 90px; }
+        .tab-content.active { display: block; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* 🔽 하단 네비게이션 */
+        .bottom-nav { position: fixed; bottom: 0; width: 100%; height: 70px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); display: flex; border-top: 2px solid #E6C280; border-radius: 25px 25px 0 0; z-index: 100; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); }
+        .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 1.6rem; position: relative; cursor: pointer; transition: 0.3s; }
+        .nav-item:hover { color: #FFD700; transform: translateY(-3px); }
+        .nav-item span { font-size: 0.8rem; margin-top: 4px; font-weight: bold; }
+        .badge { position: absolute; top: 8px; right: 25%; background: #FF4757; color: white; border-radius: 50%; width: 22px; height: 22px; font-size: 0.85rem; display: flex; align-items: center; justify-content: center; display: none; box-shadow: 0 2px 4px rgba(0,0,0,0.2); animation: pop 0.3s; }
+        @keyframes pop { 0% { transform: scale(0); } 100% { transform: scale(1); } }
+
+        /* 📝 인스타형 피드 UI */
+        .card { background: #FFF; border-radius: 25px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .avatar { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; background: #eee; border: 2px solid #E6C280; flex-shrink: 0; }
+        .flex-row { display: flex; align-items: center; gap: 12px; }
+        .post-input-area textarea { width: 100%; border: none; outline: none; resize: none; background: transparent; font-size: 1.2rem; min-height: 60px; margin-top: 10px; }
+        .img-preview { width: 100%; max-height: 200px; object-fit: cover; border-radius: 15px; display: none; margin-top: 10px; }
         
-        /* 탭 네비게이션 컨텐츠 영역 */
-        .tab-content { flex: 1; overflow-y: auto; padding: 15px; display: none; padding-bottom: 70px; }
-        .tab-content.active { display: block; }
+        .feed-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .feed-img { width: calc(100% + 40px); margin: 15px -20px; max-height: 400px; object-fit: cover; }
+        .feed-actions { display: flex; gap: 15px; font-size: 1.5rem; margin: 10px 0; }
+        .feed-actions span { cursor: pointer; transition: 0.2s; }
+        .feed-actions span:active { transform: scale(0.8); }
+        .feed-comments { background: #F8F9FA; padding: 15px; border-radius: 15px; margin-top: 15px; }
+        .comment-input-box { display: flex; gap: 10px; margin-top: 15px; border-top: 1px solid var(--border-light); padding-top: 15px; }
+        .comment-input-box input { flex: 1; border: none; background: #FFF; border-radius: 20px; padding: 10px 15px; outline: none; box-shadow: inset 0 1px 3px rgba(0,0,0,0.1); }
+        .comment-input-box button { background: var(--text-color); color: #FFF; border: none; border-radius: 20px; padding: 0 15px; cursor: pointer; }
 
-        /* 하단 탭 바 */
-        .bottom-nav {
-            position: fixed; bottom: 0; width: 100%; height: 60px; background: #FFF; display: flex;
-            border-top: 2px solid #E6C280; border-radius: 20px 20px 0 0; z-index: 100;
-        }
-        .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 1.5rem; position: relative; cursor: pointer; }
-        .nav-item span { font-size: 0.8rem; margin-top: 3px; }
-        .badge {
-            position: absolute; top: 5px; right: 25%; background: red; color: white; border-radius: 50%;
-            width: 18px; height: 18px; font-size: 0.7rem; display: flex; align-items: center; justify-content: center; display: none;
-        }
-
-        /* 채팅 UI */
-        .chat-container { display: flex; flex-direction: column; gap: 15px; }
-        .chat-bubble-wrapper { display: flex; flex-direction: column; max-width: 75%; }
-        .chat-bubble-wrapper.me { align-self: flex-end; align-items: flex-end; }
-        .chat-bubble-wrapper.other { align-self: flex-start; align-items: flex-start; }
-        .chat-bubble {
-            padding: 12px 16px; border-radius: 20px; font-size: 1.1rem;
-            word-break: break-word; white-space: pre-wrap; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-        .me .chat-bubble { background: var(--bubble-my); border-bottom-right-radius: 5px; }
-        .other .chat-bubble { background: var(--bubble-other); border-bottom-left-radius: 5px; border: 1px solid #E6C280; }
-        .chat-info { font-size: 0.75rem; opacity: 0.7; margin-top: 4px; display: flex; gap: 5px; }
-        .unread-mark { color: red; font-weight: bold; }
-
-        /* 입력창 고정 */
-        .chat-input-area {
-            position: fixed; bottom: 60px; width: 100%; display: flex; padding: 10px;
-            background: rgba(255, 249, 230, 0.9); border-top: 1px solid #E6C280; z-index: 99;
-        }
-        .chat-input-area input { flex: 1; border-radius: 20px; border: 1px solid #ccc; padding: 10px 15px; font-size: 1rem; }
-        .chat-input-area button { width: 50px; margin: 0 0 0 10px; padding: 10px; font-size: 1rem; border-radius: 50%; }
-
-        /* 프로필 & 피드 */
-        .profile-card, .post-card { background: #FFF; border-radius: 20px; padding: 15px; margin-bottom: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        .avatar { width: 50px; height: 50px; border-radius: 25px; object-fit: cover; background: #eee; }
-        .flex-row { display: flex; align-items: center; gap: 10px; }
+        /* 💬 카톡형 채팅 UI */
+        .chat-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; background: rgba(255,255,255,0.7); padding: 10px 15px; border-radius: 20px; backdrop-filter: blur(5px); position: sticky; top: 0; z-index: 10; }
+        .chat-container { display: flex; flex-direction: column; gap: 12px; }
+        .date-divider { text-align: center; margin: 20px 0; position: relative; }
+        .date-divider span { background: rgba(0,0,0,0.1); color: #FFF; padding: 5px 15px; border-radius: 15px; font-size: 0.85rem; font-family: sans-serif; }
         
-        /* 모달창 */
-        .modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:none; justify-content:center; align-items:center; z-index: 1000; }
-        .modal-content { background: var(--bg-color); width: 85%; max-height: 80%; overflow-y:auto; border-radius: 25px; padding: 25px; border: 3px solid var(--text-color); }
+        .chat-bubble-wrapper { display: flex; max-width: 85%; align-items: flex-end; gap: 8px; }
+        .chat-bubble-wrapper.me { align-self: flex-end; flex-direction: row-reverse; }
+        .chat-bubble-wrapper.other { align-self: flex-start; }
+        .chat-profile-col { display: flex; flex-direction: column; align-items: center; }
         
-        /* 스낵바 알림 */
-        #snackbar {
-            visibility: hidden; min-width: 250px; background-color: var(--text-color); color: var(--bg-color);
-            text-align: center; border-radius: 20px; padding: 16px; position: fixed; z-index: 9999;
-            left: 50%; transform: translateX(-50%); top: 30px; font-size: 1rem; font-weight: bold;
-        }
-        #snackbar.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
-        @keyframes fadein { from { top: 0; opacity: 0; } to { top: 30px; opacity: 1; } }
-        @keyframes fadeout { from { top: 30px; opacity: 1; } to { top: 0; opacity: 0; } }
+        .chat-bubble { padding: 10px 16px; border-radius: 20px; font-size: 1.1rem; word-break: break-word; white-space: pre-wrap; box-shadow: 0 2px 5px rgba(0,0,0,0.05); position: relative; line-height: 1.4; }
+        .chat-bubble img { max-width: 200px; border-radius: 10px; margin-top: 5px; display: block; }
+        .me .chat-bubble { background: var(--bubble-my); border-bottom-right-radius: 4px; }
+        .other .chat-bubble { background: var(--bubble-other); border-bottom-left-radius: 4px; border: 1px solid #E6C280; }
+        
+        .chat-info { font-size: 0.75rem; opacity: 0.8; display: flex; flex-direction: column; align-items: flex-end; min-width: 40px; }
+        .me .chat-info { align-items: flex-end; }
+        .other .chat-info { align-items: flex-start; }
+        .unread-mark { color: #FF4757; font-weight: bold; font-family: sans-serif; font-size: 0.8rem; }
 
-        /* 입력중 애니메이션 */
-        .typing-indicator { font-size: 0.8rem; color: gray; margin-bottom: 5px; height: 15px; }
+        /* 채팅 입력창 */
+        .chat-input-area { position: fixed; bottom: 70px; left: 0; width: 100%; background: #FFF; display: flex; align-items: center; padding: 10px 15px; border-top: 1px solid var(--border-light); z-index: 99; box-shadow: 0 -2px 10px rgba(0,0,0,0.02); gap: 10px; }
+        .chat-file-btn { background: #E6C280; border: none; width: 40px; height: 40px; border-radius: 50%; font-size: 1.2rem; display: flex; justify-content: center; align-items: center; cursor: pointer; }
+        .chat-input-area input[type="text"] { flex: 1; border: none; background: #F0F0F0; border-radius: 20px; padding: 12px 20px; font-size: 1.1rem; outline: none; }
+        .chat-send-btn { background: var(--text-color); color: var(--point-color); border: none; width: 45px; height: 45px; border-radius: 50%; font-size: 1.2rem; cursor: pointer; }
+
+        /* 기타 모달 & 유틸 */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(3px); display: none; justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background: var(--bg-color); width: 85%; max-width: 400px; border-radius: 30px; padding: 30px; border: 4px solid var(--text-color); box-shadow: 0 10px 30px rgba(0,0,0,0.2); animation: scaleUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes scaleUp { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        
+        #snackbar { visibility: hidden; min-width: 250px; background: rgba(92, 64, 51, 0.9); color: #FFF; text-align: center; border-radius: 25px; padding: 16px 20px; position: fixed; z-index: 9999; left: 50%; transform: translateX(-50%); top: 20px; font-size: 1.1rem; box-shadow: 0 4px 15px rgba(0,0,0,0.2); cursor: pointer; }
+        #snackbar.show { visibility: visible; animation: dropDown 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), fadeOut 0.5s 2.5s forwards; }
+        @keyframes dropDown { from { top: -50px; opacity: 0; } to { top: 20px; opacity: 1; } }
+        @keyframes fadeOut { to { top: -50px; opacity: 0; visibility: hidden; } }
+        
+        .typing-indicator { font-size: 0.9rem; color: #888; height: 20px; padding-left: 10px; font-family: sans-serif; margin-bottom: 5px; }
     </style>
 </head>
 <body>
@@ -105,52 +113,68 @@
     <div id="login-screen">
         <div class="login-box">
             <h1>🐱 혁찬톡 🐾</h1>
-            <input type="text" id="loginId" placeholder="아이디(별명) 입력">
-            <input type="password" id="loginPw" placeholder="비밀번호 입력">
-            <button onclick="auth('login')">로그인</button>
-            <button onclick="auth('register')" style="background:#E6C280;">새 고양이 가입하기</button>
+            <div class="input-group">
+                <input type="text" id="loginId" placeholder="아이디 (별명)">
+                <input type="password" id="loginPw" placeholder="비밀번호">
+            </div>
+            <label style="display:flex; align-items:center; justify-content:center; gap:5px; margin-bottom: 20px; font-size:1.1rem;">
+                <input type="checkbox" id="autoLogin" checked style="width:20px; height:20px;"> 자동 로그인
+            </label>
+            <button class="btn-main" onclick="auth('login')">로그인 🐾</button>
+            <button class="btn-main btn-sub" onclick="auth('register')">새 고양이 등록</button>
         </div>
     </div>
 
     <div id="app-screen">
         <div id="tab1" class="tab-content active">
-            <h2 style="margin-bottom: 15px;">🐾 내 피드</h2>
-            <div class="profile-card">
-                <div class="flex-row">
-                    <img id="myAvatar" class="avatar" src="" alt="🐱">
-                    <div>
-                        <h3 id="myName">이름</h3>
-                        <p id="myStatus" style="font-size:0.9rem; color:gray;">상태 메시지가 없습니다.</p>
-                    </div>
+            <h2 style="margin-bottom: 20px; font-size: 1.8rem;">🐾 내 피드</h2>
+            
+            <div class="card flex-row" style="cursor:pointer;" onclick="openModal('profileModal')">
+                <img id="myAvatar" class="avatar" src="" alt="나">
+                <div style="flex:1;">
+                    <h3 id="myName" style="font-size: 1.3rem;">이름</h3>
+                    <p id="myStatus" style="font-size: 1rem; color: #888; margin-top:4px;">상태 메시지...</p>
                 </div>
-                <button onclick="openModal('profileModal')" style="margin-top:10px; padding:8px; font-size:0.9rem;">프로필 수정</button>
+                <span style="font-size:1.5rem; color:#ccc;">⚙️</span>
             </div>
             
-            <div class="post-card">
-                <textarea id="postText" placeholder="오늘 무슨 일이 있었냥?" style="width:100%; border:none; outline:none; resize:none; background:transparent; font-family:'Jua';"></textarea>
-                <input type="file" id="postImage" accept="image/*" style="margin-top:10px;">
-                <button onclick="createPost()" style="margin-top:10px; padding:8px; font-size:0.9rem;">게시글 올리기 🐾</button>
+            <div class="card post-input-area">
+                <div class="flex-row">
+                    <img class="avatar my-avatar-sync" src="" style="width:35px; height:35px;">
+                    <textarea id="postText" placeholder="무슨 생각 하냥?"></textarea>
+                </div>
+                <img id="postPreview" class="img-preview" src="">
+                <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border-light); padding-top:15px; margin-top:10px;">
+                    <label style="cursor:pointer; font-size:1.5rem; background:#E6C280; padding:5px 12px; border-radius:15px;">
+                        🖼️ <input type="file" id="postImage" accept="image/*" style="display:none;" onchange="previewImg(this, 'postPreview')">
+                    </label>
+                    <button onclick="createPost()" class="btn-main" style="width:auto; padding:10px 25px; margin:0; font-size:1.1rem;">작성</button>
+                </div>
             </div>
+            
             <div id="feedList"></div>
         </div>
 
         <div id="tab2" class="tab-content">
-            <h2 style="margin-bottom: 15px;">🐱 고양이 친구들</h2>
+            <h2 style="margin-bottom: 20px; font-size: 1.8rem;">🐱 친구들</h2>
             <div id="friendList"></div>
         </div>
 
-        <div id="tab3" class="tab-content" style="padding-bottom: 130px;">
-            <div id="chatHeader" style="margin-bottom: 10px;">
-                <h2 id="chatTitle">🌍 전체 고양이 방</h2>
-                <button id="backToGlobalBtn" style="display:none; padding:5px; font-size:0.8rem; width:auto;" onclick="exitPrivateChat()">돌아가기</button>
+        <div id="tab3" class="tab-content">
+            <div class="chat-header">
+                <h2 id="chatTitle" style="font-size: 1.5rem;">🌍 전체 방</h2>
+                <button id="backToGlobalBtn" style="display:none; padding:8px 15px; border:none; border-radius:20px; background:#E6C280; font-size:1rem; cursor:pointer;" onclick="exitPrivateChat()">나가기</button>
             </div>
             <div class="typing-indicator" id="typingIndicator"></div>
             <div id="chatBox" class="chat-container"></div>
-            
-            <div class="chat-input-area">
-                <input type="text" id="chatInput" placeholder="야옹~ 메시지 입력..." oninput="handleTyping()">
-                <button onclick="sendMessage()">🐾</button>
-            </div>
+        </div>
+        
+        <div class="chat-input-area" id="chatInputArea" style="display:none;">
+            <label class="chat-file-btn">
+                ➕ <input type="file" id="chatImage" accept="image/*" style="display:none;" onchange="sendChatImage(this)">
+            </label>
+            <input type="text" id="chatInput" placeholder="메시지 입력..." oninput="handleTyping()">
+            <button class="chat-send-btn" onclick="sendMessage()">🐾</button>
         </div>
 
         <div class="bottom-nav">
@@ -161,37 +185,36 @@
     </div>
 
     <div class="modal-overlay" id="noticeModal">
-        <div class="modal-content text-center">
-            <h2>🎉 환영한다냥! 🎉</h2>
-            <p style="margin: 15px 0;">반갑다.<br>나 권혁찬인데 재밌게 즐겼으면 좋겠다.</p>
-            <hr style="border: 0.5px solid #E6C280; margin: 10px 0;">
-            <ul style="text-align: left; margin-left: 20px; font-size: 0.9rem;">
-                <li><strong>🐾 내 피드:</strong> 프로필 사진(갤러리)을 바꾸고, 글과 사진을 올려봐!</li>
-                <li><strong>🐱 친구 목록:</strong> 초록불이 켜진 접속 중인 친구 프로필을 누르고 1:1 채팅을 걸 수 있어.</li>
-                <li><strong>💬 채팅:</strong> 전체 채팅방 기록은 나갔다 와도 유지돼! 1:1 채팅은 읽음(1) 표시도 지원해!</li>
-            </ul>
-            <button onclick="closeModal('noticeModal')" style="margin-top:20px;">확인했다냥!</button>
+        <div class="modal-content" style="text-align: center;">
+            <h2 style="font-size:2rem; margin-bottom:10px;">🎉 환영한다냥! 🎉</h2>
+            <p style="font-size:1.2rem; line-height:1.5;">반갑다.<br>나 권혁찬인데 맘껏 즐겨라.</p>
+            <button class="btn-main" onclick="closeModal('noticeModal')" style="margin-top:20px;">시작하기</button>
         </div>
     </div>
 
     <div class="modal-overlay" id="profileModal">
-        <div class="modal-content">
-            <h3>프로필 수정</h3>
-            <input type="text" id="editNickname" placeholder="새 닉네임">
-            <input type="text" id="editStatus" placeholder="상태 메시지">
-            <input type="file" id="editPhoto" accept="image/*">
-            <button onclick="saveProfile()" style="margin-top:10px;">저장하기</button>
-            <button onclick="closeModal('profileModal')" style="background:#ccc;">닫기</button>
+        <div class="modal-content text-center">
+            <h3 style="font-size:1.5rem; margin-bottom:15px;">프로필 튜닝</h3>
+            <div style="position:relative; width:100px; height:100px; margin:0 auto 15px;">
+                <img id="editAvatarPreview" class="avatar" style="width:100%; height:100%;" src="">
+                <label style="position:absolute; bottom:0; right:0; background:#E6C280; border-radius:50%; padding:8px; cursor:pointer;">
+                    📷 <input type="file" id="editPhoto" accept="image/*" style="display:none;" onchange="previewImg(this, 'editAvatarPreview')">
+                </label>
+            </div>
+            <input type="text" id="editNickname" placeholder="새 닉네임" class="btn-main" style="background:#FFF; color:#000; border:2px solid #E6C280;">
+            <input type="text" id="editStatus" placeholder="상태 메시지" class="btn-main" style="background:#FFF; color:#000; border:2px solid #E6C280;">
+            <button class="btn-main" onclick="saveProfile()">저장</button>
+            <button class="btn-main btn-sub" onclick="closeModal('profileModal')">닫기</button>
         </div>
     </div>
 
     <div class="modal-overlay" id="friendProfileModal">
         <div class="modal-content" style="text-align: center;">
-            <img id="fpAvatar" class="avatar" style="width:80px; height:80px; border-radius:40px; margin:0 auto;" src="" alt="🐱">
-            <h2 id="fpName" style="margin: 10px 0;">이름</h2>
-            <p id="fpStatus" style="color:gray; margin-bottom: 20px;">상태 메시지</p>
-            <button id="fpChatBtn" onclick="startPrivateChat()">💬 1:1 채팅하기</button>
-            <button onclick="closeModal('friendProfileModal')" style="background:#ccc;">닫기</button>
+            <img id="fpAvatar" class="avatar" style="width:120px; height:120px; margin:0 auto 15px;" src="">
+            <h2 id="fpName" style="font-size:1.8rem;">이름</h2>
+            <p id="fpStatus" style="color:gray; margin-bottom: 25px; font-size:1.1rem;">상태</p>
+            <button id="fpChatBtn" class="btn-main" onclick="startPrivateChat()">💬 1:1 대화하기</button>
+            <button class="btn-main btn-sub" onclick="closeModal('friendProfileModal')">닫기</button>
         </div>
     </div>
 
@@ -200,307 +223,259 @@
         const socket = io();
         let myInfo = {};
         let currentTab = 1;
-        let currentChatTarget = 'global'; // 'global' or userId
+        let currentChatTarget = 'global'; 
         let typingTimeout = null;
-        
         let unreadGlobal = 0;
         let unreadPrivateSenders = new Set();
+        let lastChatDate = ''; // 날짜 구분선 렌더링용
 
-        /* ----- UI / 유틸리티 ----- */
-        function switchTab(tabNum) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            document.getElementById(`tab${tabNum}`).classList.add('active');
-            currentTab = tabNum;
-            if(tabNum === 3) {
-                if(currentChatTarget === 'global') {
-                    unreadGlobal = 0; 
-                    updateBadges();
-                } else {
-                    socket.emit('markAsRead', { targetId: currentChatTarget });
-                }
-                setTimeout(() => scrollToBottom(), 100);
+        // 🛠️ 유틸리티
+        const $ = id => document.getElementById(id);
+        const openModal = id => $(id).style.display = 'flex';
+        const closeModal = id => $(id).style.display = 'none';
+        
+        function previewImg(input, imgId) {
+            if(input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = e => { $(imgId).src = e.target.result; $(imgId).style.display = 'block'; };
+                reader.readAsDataURL(input.files[0]);
             }
         }
+        
+        function getBase64(file, cb) {
+            if(!file) return cb(null);
+            const r = new FileReader(); r.onload = e => cb(e.target.result); r.readAsDataURL(file);
+        }
 
+        // 🔊 알림 & 뱃지
         function showSnackbar(msg, targetTab) {
-            const sb = document.getElementById("snackbar");
-            sb.innerText = msg;
-            sb.className = "show";
-            sb.onclick = () => { switchTab(targetTab === 'feed' ? 1 : (targetTab === 'friends' ? 2 : 3)); sb.className = ""; };
-            // 야옹! 시각 효과 및 사운드 대체
+            const sb = $("snackbar"); sb.innerText = msg; sb.className = "show";
+            try { new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA').play(); } catch(e){}
+            sb.onclick = () => { switchTab(targetTab === 'feed'? 1 : (targetTab === 'friends'? 2 : 3)); sb.className = ""; };
             setTimeout(() => { sb.className = sb.className.replace("show", ""); }, 3000);
         }
 
         function updateBadges() {
-            const chatBadge = document.getElementById('badge-chat');
-            const friendBadge = document.getElementById('badge-friends');
-            
-            chatBadge.innerText = unreadGlobal;
-            chatBadge.style.display = unreadGlobal > 0 ? 'flex' : 'none';
-            
-            friendBadge.innerText = unreadPrivateSenders.size;
-            friendBadge.style.display = unreadPrivateSenders.size > 0 ? 'flex' : 'none';
+            $('badge-chat').innerText = unreadGlobal; $('badge-chat').style.display = unreadGlobal > 0 ? 'flex' : 'none';
+            $('badge-friends').innerText = unreadPrivateSenders.size; $('badge-friends').style.display = unreadPrivateSenders.size > 0 ? 'flex' : 'none';
         }
 
-        function openModal(id) { document.getElementById(id).style.display = 'flex'; }
-        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
-        
-        // 파일 업로드를 Base64로 변환 (서버 부하 감소 목적)
-        function fileToBase64(file, callback) {
-            if (!file) return callback("");
-            const reader = new FileReader();
-            reader.onload = (e) => callback(e.target.result);
-            reader.readAsDataURL(file);
+        // 📱 네비게이션
+        function switchTab(num) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            $(`tab${num}`).classList.add('active');
+            currentTab = num;
+            $('chatInputArea').style.display = (num === 3) ? 'flex' : 'none'; // 채팅탭에서만 입력창 보이기
+            if(num === 3) {
+                if(currentChatTarget === 'global') { unreadGlobal = 0; updateBadges(); }
+                else socket.emit('markAsRead', { targetId: currentChatTarget });
+                setTimeout(() => $('tab3').scrollTop = $('tab3').scrollHeight, 100);
+            }
         }
 
-        function scrollToBottom() {
-            const cb = document.getElementById('tab3');
-            cb.scrollTop = cb.scrollHeight;
-        }
+        // 🔐 인증 (자동 로그인 로컬스토리지)
+        window.onload = () => {
+            const token = localStorage.getItem('hc_token');
+            if(token) socket.emit('auth', { type: 'auto', id: token });
+        };
 
-        /* ----- 인증 & 초기화 ----- */
         function auth(type) {
-            const id = document.getElementById('loginId').value.trim();
-            const pw = document.getElementById('loginPw').value.trim();
-            if(!id || !pw) return alert('아이디와 비밀번호를 냥냥하게 입력해라냥!');
-            socket.emit('auth', { type, id, pw, nickname: id });
+            const id = $('loginId').value.trim(); const pw = $('loginPw').value.trim();
+            if(!id || (type==='login' && !pw)) return alert('냥냥하게 다 입력해라!');
+            socket.emit('auth', { type, id, pw, nickname: id, autoLogin: $('autoLogin').checked });
         }
 
         socket.on('authResult', (res) => {
             if (!res.success) return alert(res.msg);
+            if (res.token) localStorage.setItem('hc_token', res.token);
             
             myInfo = res.user;
-            document.getElementById('login-screen').style.display = 'none';
-            document.getElementById('app-screen').style.display = 'flex';
+            $('login-screen').style.display = 'none'; $('app-screen').style.display = 'flex';
             
-            updateMyProfileUI();
+            updateProfileUI(); renderPosts(res.posts);
             socket.emit('requestUserList');
-            socket.emit('requestPosts');
-
-            // 전역 채팅 기록 로드
-            document.getElementById('chatBox').innerHTML = '';
+            
+            $('chatBox').innerHTML = ''; lastChatDate = '';
             res.globalChat.forEach(m => renderMessage(m, 'global'));
 
-            if(res.isNew) {
-                openModal('noticeModal');
-            }
+            if(res.isNew) openModal('noticeModal');
         });
 
-        /* ----- 탭 1: 피드 및 프로필 ----- */
-        function updateMyProfileUI() {
-            document.getElementById('myName').innerText = myInfo.nickname;
-            document.getElementById('myStatus').innerText = myInfo.status || '상태 메시지가 없습니다.';
-            if(myInfo.photo) document.getElementById('myAvatar').src = myInfo.photo;
-            
-            document.getElementById('editNickname').value = myInfo.nickname;
-            document.getElementById('editStatus').value = myInfo.status;
+        // 🐾 [1] 인스타 피드 기능
+        function updateProfileUI() {
+            $('myName').innerText = myInfo.nickname; $('myStatus').innerText = myInfo.status || '...';
+            document.querySelectorAll('.my-avatar-sync').forEach(el => el.src = myInfo.photo || '');
+            $('myAvatar').src = myInfo.photo || ''; $('editAvatarPreview').src = myInfo.photo || '';
+            $('editNickname').value = myInfo.nickname; $('editStatus').value = myInfo.status;
         }
 
         function saveProfile() {
-            const nickname = document.getElementById('editNickname').value;
-            const status = document.getElementById('editStatus').value;
-            const file = document.getElementById('editPhoto').files[0];
-            
-            fileToBase64(file, (photoBase64) => {
-                const data = { nickname, status, photo: photoBase64 || myInfo.photo };
-                socket.emit('updateProfile', data);
+            getBase64($('editPhoto').files[0], (img) => {
+                socket.emit('updateProfile', { nickname: $('editNickname').value, status: $('editStatus').value, photo: img || myInfo.photo });
                 closeModal('profileModal');
             });
         }
-
-        socket.on('profileUpdated', (user) => { myInfo = user; updateMyProfileUI(); });
+        socket.on('profileUpdated', (u) => { myInfo = u; updateProfileUI(); });
 
         function createPost() {
-            const content = document.getElementById('postText').value;
-            const file = document.getElementById('postImage').files[0];
-            if(!content && !file) return;
-            
-            fileToBase64(file, (imgBase64) => {
-                socket.emit('createPost', { content, image: imgBase64 });
-                document.getElementById('postText').value = '';
-                document.getElementById('postImage').value = '';
+            const txt = $('postText').value.trim();
+            getBase64($('postImage').files[0], (img) => {
+                if(!txt && !img) return;
+                socket.emit('createPost', { content: txt, image: img });
+                $('postText').value = ''; $('postImage').value = ''; $('postPreview').style.display='none';
             });
         }
 
-        socket.on('updatePosts', (posts) => {
-            const feedList = document.getElementById('feedList');
-            feedList.innerHTML = '';
+        function renderPosts(posts) {
+            const list = $('feedList'); list.innerHTML = '';
             posts.forEach(p => {
-                const isLiked = p.likes.includes(myInfo.id);
-                let html = `
-                    <div class="post-card">
-                        <div class="flex-row" style="margin-bottom:10px;">
-                            <strong>익명의 고양이</strong>
+                const liked = p.likes.includes(myInfo.id);
+                list.innerHTML += `
+                    <div class="card">
+                        <div class="feed-header">
+                            <div class="flex-row">
+                                <img class="avatar" src="${p.authorPhoto || ''}">
+                                <div>
+                                    <strong style="font-size:1.2rem;">${p.authorName}</strong>
+                                    <div style="font-size:0.8rem; color:#aaa;">방금 전</div>
+                                </div>
+                            </div>
+                            <span style="color:#ccc;">•••</span>
                         </div>
-                        <p>${p.content}</p>
-                        ${p.image ? `<img src="${p.image}" style="width:100%; border-radius:10px; margin-top:10px;">` : ''}
-                        <div style="margin-top:10px;">
-                            <span onclick="socket.emit('likePost', ${p.id})" style="cursor:pointer; color:${isLiked?'red':'gray'};">❤️ ${p.likes.length}</span>
+                        ${p.image ? `<img src="${p.image}" class="feed-img">` : ''}
+                        <div class="feed-actions">
+                            <span onclick="socket.emit('likePost', ${p.id})" style="color:${liked?'#FF4757':'var(--text-color)'}">${liked?'❤️':'🤍'}</span>
+                            <span onclick="$('cmt_${p.id}').focus()">💬</span>
+                            <span>✈️</span>
                         </div>
-                        <div style="margin-top:10px; border-top:1px solid #eee; padding-top:10px;">
-                            ${p.comments.map(c => `<div style="font-size:0.9rem; padding:3px 0;"><strong>고양이:</strong> ${c.text}</div>`).join('')}
-                            <div class="flex-row" style="margin-top:5px;">
-                                <input type="text" id="cmt_${p.id}" placeholder="댓글 달기..." style="flex:1; border:1px solid #ccc; border-radius:10px; padding:5px;">
-                                <button onclick="addComment(${p.id})" style="width:auto; padding:5px 10px; margin:0;">등록</button>
+                        <div style="font-weight:bold; margin-bottom:5px;">좋아요 ${p.likes.length}개</div>
+                        <p style="font-size:1.1rem; line-height:1.4;">${p.content}</p>
+                        
+                        <div class="feed-comments">
+                            ${p.comments.map(c => `<div style="margin-bottom:5px;"><strong>${c.authorName}</strong> ${c.text}</div>`).join('')}
+                            <div class="comment-input-box">
+                                <input type="text" id="cmt_${p.id}" placeholder="댓글 달기...">
+                                <button onclick="addComment(${p.id})">게시</button>
                             </div>
                         </div>
                     </div>`;
-                feedList.innerHTML += html;
             });
-        });
-
-        function addComment(postId) {
-            const text = document.getElementById(`cmt_${postId}`).value;
-            if(text) socket.emit('commentPost', { postId, text, parentId: null });
         }
+        socket.on('updatePosts', renderPosts);
+        function addComment(id) { const t = $(`cmt_${id}`).value; if(t) socket.emit('commentPost', { postId:id, text:t }); }
 
-        /* ----- 탭 2: 친구 목록 ----- */
+        // 🐱 [2] 친구 목록
         socket.on('updateUserList', (users) => {
-            const list = document.getElementById('friendList');
-            list.innerHTML = '';
+            const list = $('friendList'); list.innerHTML = '';
             users.forEach(u => {
-                const statusColor = u.online ? '#4CAF50' : '#9E9E9E'; // 초록불 / 회색불
                 list.innerHTML += `
-                    <div class="profile-card flex-row" style="cursor:pointer;" onclick='openFriendModal(${JSON.stringify(u)})'>
+                    <div class="card flex-row" style="cursor:pointer; padding:15px;" onclick='openFriendModal(${JSON.stringify(u)})'>
                         <div style="position:relative;">
-                            <img class="avatar" src="${u.photo || ''}" alt="🐱">
-                            <div style="position:absolute; bottom:0; right:0; width:12px; height:12px; background:${statusColor}; border-radius:50%; border:2px solid #FFF;"></div>
+                            <img class="avatar" src="${u.photo || ''}">
+                            <div style="position:absolute; bottom:0; right:0; width:15px; height:15px; background:${u.online?'#2ED573':'#A4B0BE'}; border-radius:50%; border:2px solid #FFF;"></div>
                         </div>
                         <div style="flex:1;">
-                            <h3>${u.nickname}</h3>
-                            <p style="font-size:0.8rem; color:gray;">${u.status}</p>
+                            <h3 style="font-size:1.3rem;">${u.nickname}</h3>
+                            <p style="font-size:1rem; color:gray; margin-top:3px;">${u.status || ''}</p>
                         </div>
                     </div>`;
             });
         });
-
+        
+        let selectedFriendId = '';
         function openFriendModal(u) {
-            document.getElementById('fpAvatar').src = u.photo || '';
-            document.getElementById('fpName').innerText = u.nickname;
-            document.getElementById('fpStatus').innerText = u.status || '상태 없음';
-            document.getElementById('fpChatBtn').onclick = () => {
-                closeModal('friendProfileModal');
-                startPrivateChat(u.id, u.nickname);
-            };
+            selectedFriendId = u.id; $('fpAvatar').src = u.photo || ''; $('fpName').innerText = u.nickname; $('fpStatus').innerText = u.status || '';
             openModal('friendProfileModal');
         }
 
-        /* ----- 탭 3: 채팅 (전체 & 1:1) ----- */
-        function startPrivateChat(targetId, nickname) {
-            currentChatTarget = targetId;
-            document.getElementById('chatTitle').innerText = `💌 ${nickname}님과의 대화`;
-            document.getElementById('backToGlobalBtn').style.display = 'inline-block';
-            document.getElementById('chatBox').innerHTML = ''; // 화면 클리어
-            unreadPrivateSenders.delete(targetId);
-            updateBadges();
-            
-            socket.emit('joinPrivate', targetId);
-            switchTab(3);
+        // 💬 [3] 카톡형 채팅 기능
+        function startPrivateChat() {
+            closeModal('friendProfileModal'); currentChatTarget = selectedFriendId;
+            $('chatTitle').innerText = `💌 ${$('fpName').innerText}님과 대화`;
+            $('backToGlobalBtn').style.display = 'inline-block';
+            $('chatBox').innerHTML = ''; lastChatDate = '';
+            unreadPrivateSenders.delete(currentChatTarget); updateBadges();
+            socket.emit('joinPrivate', currentChatTarget); switchTab(3);
         }
 
         function exitPrivateChat() {
-            currentChatTarget = 'global';
-            document.getElementById('chatTitle').innerText = `🌍 전체 고양이 방`;
-            document.getElementById('backToGlobalBtn').style.display = 'none';
-            document.getElementById('chatBox').innerHTML = '';
-            // 전역 메시지 리로드 (간단하게 페이지 갱신 없이 서버에서 다시 받아와도 되나 배열 캐싱됨)
-            // 여기서는 보안/단순화를 위해 다시 그리지 않거나, 서버에 요청 필요.
-            alert("전체방으로 돌아왔다냥! 새 메시지가 오면 뜹니다."); 
+            currentChatTarget = 'global'; $('chatTitle').innerText = `🌍 전체 방`;
+            $('backToGlobalBtn').style.display = 'none'; $('chatBox').innerHTML = ''; lastChatDate = '';
+            socket.emit('requestGlobalChat');
         }
-
-        socket.on('loadPrivateChat', ({ messages }) => {
-            messages.forEach(m => renderMessage(m, 'private'));
-            scrollToBottom();
-        });
+        
+        socket.on('loadGlobalChat', (hist) => { if(currentChatTarget==='global'){ $('chatBox').innerHTML=''; lastChatDate=''; hist.forEach(m=>renderMessage(m,'global')); } });
+        socket.on('loadPrivateChat', ({ messages }) => { messages.forEach(m => renderMessage(m, 'private')); });
 
         function renderMessage(msg, type) {
-            const box = document.getElementById('chatBox');
-            const isMe = msg.authorId === myInfo.id;
-            const alignClass = isMe ? 'me' : 'other';
-            const readMark = (type === 'private' && isMe && !msg.read) ? `<span class="unread-mark" id="msg_${msg.id}">1</span>` : '';
-            const nameLabel = !isMe ? `<div style="font-size:0.8rem; margin-bottom:3px;">${msg.nickname || '친구'}</div>` : '';
+            const box = $('chatBox');
+            
+            // 날짜 구분선 로직 (카카오톡 스타일)
+            if (msg.date && msg.date !== lastChatDate) {
+                box.innerHTML += `<div class="date-divider"><span>${msg.date}</span></div>`;
+                lastChatDate = msg.date;
+            }
+
+            const isMe = (msg.authorId === myInfo.id); 
+            const readMark = (type === 'private' && isMe && !msg.read) ? `<span class="unread-mark">1</span>` : '';
+            
+            let bubbleContent = msg.image ? `<img src="${msg.image}">` : '';
+            bubbleContent += msg.text ? `<div>${msg.text}</div>` : '';
+
+            // 프로필 사진 렌더링 (상대방일 때만)
+            const profileHTML = !isMe ? `<div class="chat-profile-col"><img src="${msg.photo || ''}" class="avatar" style="width:35px; height:35px; margin-bottom:5px;"><span style="font-size:0.8rem; font-weight:bold;">${msg.nickname}</span></div>` : '';
 
             box.innerHTML += `
-                <div class="chat-bubble-wrapper ${alignClass}">
-                    ${nameLabel}
-                    <div style="display:flex; align-items:flex-end; gap:5px; flex-direction:${isMe?'row-reverse':'row'};">
-                        <div class="chat-bubble">${msg.text}</div>
-                        <div class="chat-info">${readMark} ${msg.time}</div>
-                    </div>
+                <div class="chat-bubble-wrapper ${isMe ? 'me' : 'other'}">
+                    ${profileHTML}
+                    <div class="chat-bubble">${bubbleContent}</div>
+                    <div class="chat-info">${readMark} <span>${msg.time}</span></div>
                 </div>
             `;
-            scrollToBottom();
+            setTimeout(() => $('tab3').scrollTop = $('tab3').scrollHeight, 50);
         }
 
         function sendMessage() {
-            const input = document.getElementById('chatInput');
-            const text = input.value.trim();
+            const input = $('chatInput'); const text = input.value.trim();
             if(!text) return;
-
-            if (currentChatTarget === 'global') {
-                socket.emit('sendGlobalMsg', text);
-            } else {
-                socket.emit('sendPrivateMsg', { targetId: currentChatTarget, text });
-            }
-            input.value = '';
-            
-            // 입력 멈춤 처리
-            clearTimeout(typingTimeout);
-            socket.emit('typing', { targetId: currentChatTarget, isTyping: false });
+            socket.emit(currentChatTarget === 'global' ? 'sendGlobalMsg' : 'sendPrivateMsg', { targetId: currentChatTarget, text, image: null });
+            input.value = ''; clearTimeout(typingTimeout); socket.emit('typing', { targetId: currentChatTarget, isTyping: false });
+            input.focus();
         }
 
-        socket.on('newGlobalMsg', (msg) => {
-            if (currentChatTarget === 'global') {
-                renderMessage(msg, 'global');
-                if (currentTab !== 3) { unreadGlobal++; updateBadges(); }
-            } else {
-                unreadGlobal++; updateBadges();
-            }
-        });
+        // 채팅방 이미지 전송 (우측 하단 + 버튼)
+        function sendChatImage(input) {
+            getBase64(input.files[0], (img) => {
+                if(!img) return;
+                socket.emit(currentChatTarget === 'global' ? 'sendGlobalMsg' : 'sendPrivateMsg', { targetId: currentChatTarget, text: '', image: img });
+                input.value = '';
+            });
+        }
 
+        socket.on('newGlobalMsg', (m) => { if(currentChatTarget==='global') renderMessage(m,'global'); else { unreadGlobal++; updateBadges(); } });
         socket.on('newPrivateMsg', ({ msg, targetId }) => {
-            // 내가 참여중인 1:1 방의 메시지인 경우
-            if (currentChatTarget === msg.authorId || currentChatTarget === targetId) {
+            if(currentChatTarget === msg.authorId || currentChatTarget === targetId) {
                 renderMessage(msg, 'private');
-                if (currentTab === 3 && msg.authorId !== myInfo.id) {
-                    socket.emit('markAsRead', { targetId: msg.authorId });
-                }
+                if(currentTab === 3 && msg.authorId !== myInfo.id) socket.emit('markAsRead', { targetId: msg.authorId });
             }
         });
+        socket.on('receivePrivateMsgOut', ({ senderId }) => { if(currentChatTarget !== senderId || currentTab !== 3) { unreadPrivateSenders.add(senderId); updateBadges(); } });
+        socket.on('privateRead', ({ readerId }) => { if(currentChatTarget === readerId) document.querySelectorAll('.unread-mark').forEach(e => e.style.display='none'); });
 
-        // 상대방이 내 메시지를 읽었을 때 '1' 지우기
-        socket.on('privateRead', ({ readerId }) => {
-            if (currentChatTarget === readerId) {
-                document.querySelectorAll('.unread-mark').forEach(el => el.style.display = 'none');
-            }
-        });
-
-        /* ----- 입력중 상태 및 알림 ----- */
+        // 타이핑 인디케이터
         function handleTyping() {
             socket.emit('typing', { targetId: currentChatTarget, isTyping: true });
             clearTimeout(typingTimeout);
-            typingTimeout = setTimeout(() => {
-                socket.emit('typing', { targetId: currentChatTarget, isTyping: false });
-            }, 2000);
+            typingTimeout = setTimeout(() => socket.emit('typing', { targetId: currentChatTarget, isTyping: false }), 2000);
         }
-
         socket.on('userTyping', ({ targetId, nickname, isTyping }) => {
-            const indicator = document.getElementById('typingIndicator');
-            if(isTyping && (currentChatTarget === targetId || (targetId==='global' && currentChatTarget==='global'))) {
-                indicator.innerText = `${nickname}님이 꼬물꼬물 입력 중... 🐾`;
-            } else {
-                indicator.innerText = '';
-            }
+            const ind = $('typingIndicator');
+            if(isTyping && (currentChatTarget===targetId || (targetId==='global'&&currentChatTarget==='global'))) ind.innerText = `${nickname}님이 입력 중... 🐾`;
+            else ind.innerText = '';
         });
 
-        socket.on('notification', ({ msg, target, senderId }) => {
-            showSnackbar(msg, target);
-            if (senderId && currentChatTarget !== senderId) {
-                unreadPrivateSenders.add(senderId);
-                updateBadges();
-            }
-        });
-
+        socket.on('notification', ({ msg, target }) => showSnackbar(msg, target));
+        $('chatInput').addEventListener('keypress', e => { if(e.key === 'Enter') sendMessage(); });
     </script>
 </body>
 </html>
