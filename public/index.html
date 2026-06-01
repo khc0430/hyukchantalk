@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>혁찬톡 - 즐거운 대화</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        :root { 
+            --kakao-yellow: #fee500; --kakao-brown: #3c1e1e;
+            --bg-blue: #abc1d1; --text-gray: #666;
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { 
+            font-family: 'Apple SD Gothic Neo', sans-serif; margin: 0; 
+            background: #fff; height: 100vh; width: 100vw;
+            display: flex; flex-direction: column; overflow: hidden; color: #000;
+        }
+
+        /* Auth Screen */
+        .auth-overlay { position: fixed; inset: 0; background: var(--kakao-yellow); display: flex; justify-content: center; align-items: center; z-index: 5000; padding: 20px; }
+        .auth-box { width: 100%; max-width: 320px; text-align: center; }
+        .auth-box h1 { font-size: 3rem; color: var(--kakao-brown); margin-bottom: 50px; }
+        .auth-box input { width: 100%; padding: 15px; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 10px; font-size: 1rem; }
+        .auth-box button { width: 100%; padding: 15px; background: var(--kakao-brown); color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; }
+
+        /* Header */
+        .header { height: 60px; background: #fff; display: flex; align-items: center; padding: 0 20px; font-weight: bold; font-size: 1.2rem; border-bottom: 1px solid #eee; justify-content: space-between; }
+
+        /* Tab Content */
+        .tab-content { flex: 1; display: none; flex-direction: column; overflow: hidden; }
+        .tab-content.active { display: flex; }
+
+        /* User List */
+        .scroll-list { flex: 1; overflow-y: auto; padding: 5px 0; }
+        .user-item { display: flex; align-items: center; gap: 15px; padding: 12px 20px; cursor: pointer; border-bottom: 1px solid #f9f9f9; position: relative; }
+        .avatar-wrap { position: relative; width: 50px; height: 50px; flex-shrink: 0; }
+        .item-avatar { width: 100%; height: 100%; border-radius: 18px; object-fit: cover; border: 1px solid #eee; }
+        .status-dot { position: absolute; bottom: -2px; right: -2px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; background: #ccc; }
+        .status-dot.online { background: #4CAF50; }
+        .user-info { flex: 1; min-width: 0; }
+        .user-info strong { display: block; font-size: 1rem; margin-bottom: 3px; }
+        .user-info small { color: var(--text-gray); font-size: 0.85rem; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        /* Chat UI */
+        .chat-win { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px; background: var(--bg-blue); }
+        .msg-row { display: flex; flex-direction: column; }
+        .msg-bubble { padding: 8px 12px; border-radius: 8px; font-size: 0.95rem; max-width: 80%; line-height: 1.5; position: relative; }
+        .mine { align-self: flex-end; align-items: flex-end; }
+        .others { align-self: flex-start; align-items: flex-start; }
+        .mine .msg-bubble { background: var(--kakao-yellow); border-top-right-radius: 2px; }
+        .others .msg-bubble { background: #fff; border-top-left-radius: 2px; }
+        .msg-time { font-size: 0.7rem; color: #555; margin-top: 4px; }
+        .msg-sender { font-size: 0.8rem; font-weight: bold; margin-bottom: 4px; }
+
+        /* Input Box */
+        .input-box { padding: 10px 15px; background: #fff; display: flex; gap: 10px; border-top: 1px solid #eee; padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
+        .input-box input { flex: 1; padding: 10px; border: 1px solid #eee; border-radius: 20px; outline: none; background: #f8f8f8; }
+        .input-box button { padding: 0 15px; border: none; background: var(--kakao-yellow); border-radius: 5px; font-weight: bold; cursor: pointer; }
+
+        /* Bottom Nav */
+        .bottom-nav { height: 65px; display: flex; border-top: 1px solid #eee; background: #fafafa; padding-bottom: env(safe-area-inset-bottom); }
+        .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #999; cursor: pointer; position: relative; }
+        .nav-item.active { color: #000; }
+        .nav-icon { font-size: 1.5rem; }
+        
+        /* Badge */
+        .badge { position: absolute; top: 8px; right: 25%; background: #ff4d4d; color: white; border-radius: 10px; padding: 2px 6px; font-size: 0.7rem; font-weight: bold; display: none; min-width: 18px; text-align: center; }
+
+        /* Overlay Views */
+        .overlay-view { position: fixed; inset: 0; background: #fff; z-index: 1000; display: none; flex-direction: column; }
+        .overlay-view.active { display: flex; }
+        
+        /* Profile Card */
+        .profile-card { flex: 1; overflow-y: auto; text-align: center; padding: 60px 20px; }
+        .profile-card img { width: 100px; height: 100px; border-radius: 35px; border: 1px solid #eee; margin-bottom: 20px; }
+        .social-stats { display: flex; gap: 30px; justify-content: center; margin: 25px 0; }
+        .stat-btn { display: flex; align-items: center; gap: 5px; cursor: pointer; color: var(--text-gray); }
+        .comment-item { text-align: left; padding: 12px; border-bottom: 1px solid #f9f9f9; }
+
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 3000; justify-content: center; align-items: center; }
+        .modal-content { background: white; padding: 30px; border-radius: 15px; width: 320px; color: #000; }
+        .modal-content input, .modal-content textarea { width: 100%; padding: 12px; margin-bottom: 12px; border: 1px solid #ddd; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <!-- Auth -->
+    <div id="auth-screen" class="auth-overlay">
+        <div class="auth-box" id="login-form">
+            <h1>혁찬톡</h1>
+            <input type="text" id="auth-id" placeholder="아이디">
+            <input type="password" id="auth-pw" placeholder="비밀번호">
+            <button onclick="handleAuth('login')">로그인</button>
+            <p style="margin-top:20px; font-size:0.9rem; color:var(--kakao-brown); cursor:pointer;" onclick="toggleAuth(true)">즉석 회원가입</p>
+        </div>
+        <div class="auth-box" id="reg-form" style="display:none;">
+            <h1>가입하기</h1>
+            <input type="text" id="reg-id" placeholder="사용할 아이디">
+            <input type="password" id="reg-pw" placeholder="비밀번호">
+            <button onclick="handleAuth('register')">가입하기</button>
+            <p style="margin-top:20px; font-size:0.9rem; color:var(--kakao-brown); cursor:pointer;" onclick="toggleAuth(false)">이미 계정이 있습니다</p>
+        </div>
+    </div>
+
+    <!-- Tab Friends -->
+    <div id="tab-friends" class="tab-content active">
+        <div class="header">
+            <span>친구</span>
+            <span onclick="openEdit()" style="font-size:0.9rem; font-weight:normal;">내 프로필</span>
+        </div>
+        <div class="scroll-list" id="friend-list"></div>
+    </div>
+
+    <!-- Tab Global -->
+    <div id="tab-global" class="tab-content">
+        <div class="header">전체 채팅</div>
+        <div id="global-win" class="chat-win"></div>
+        <div class="input-box">
+            <input type="text" id="global-input" placeholder="메시지 입력..." onkeypress="if(event.keyCode==13) sendMsg('global')">
+            <button onclick="sendMsg('global')">전송</button>
+        </div>
+    </div>
+
+    <!-- Overlay Private Chat -->
+    <div id="view-private" class="overlay-view">
+        <div class="header">
+            <span onclick="closeOverlay('view-private')">◀ <span id="priv-title">친구이름</span></span>
+        </div>
+        <div id="priv-win" class="chat-win"></div>
+        <div class="input-box">
+            <input type="text" id="priv-input" placeholder="비밀 메시지..." onkeypress="if(event.keyCode==13) sendMsg('private')">
+            <button onclick="sendMsg('private')">전송</button>
+        </div>
+    </div>
+
+    <!-- Overlay Profile -->
+    <div id="view-profile" class="overlay-view">
+        <div class="header"><span onclick="closeOverlay('view-profile')">◀ 프로필</span></div>
+        <div class="profile-card">
+            <img id="v-pic" src="">
+            <h2 id="v-name" style="margin:0;"></h2>
+            <p id="v-status" style="margin:10px 0; color:gray;"></p>
+            <div id="v-bio" style="background:#f8f8f8; padding:20px; border-radius:15px; margin:20px 0; font-size:0.9rem;"></div>
+            <div class="social-stats">
+                <div class="stat-btn" onclick="likeProfile()">❤️ <span id="v-likes">0</span></div>
+                <div class="stat-btn">💬 <span id="v-comm-count">0</span></div>
+            </div>
+            <div style="text-align:left; padding:0 20px;">
+                <div style="display:flex; gap:10px; margin-bottom:20px;">
+                    <input type="text" id="comm-input" style="flex:1; padding:10px; border:1px solid #ddd; border-radius:5px;" placeholder="댓글 입력...">
+                    <button onclick="addComment()" style="background:var(--kakao-yellow); border:none; padding:0 15px; border-radius:5px;">등록</button>
+                </div>
+                <div id="v-comments"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Nav -->
+    <div class="bottom-nav">
+        <div class="nav-item active" onclick="switchTab('friends')">
+            <span class="nav-icon">👤</span>
+            <span>친구</span>
+            <div class="badge" id="badge-friends">0</div>
+        </div>
+        <div class="nav-item" onclick="switchTab('global')">
+            <span class="nav-icon">💬</span>
+            <span>전체채팅</span>
+            <div class="badge" id="badge-global">0</div>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div id="edit-modal" class="modal">
+        <div class="modal-content">
+            <h3 style="margin-top:0;">프로필 수정</h3>
+            <input type="file" id="p-pic" accept="image/*">
+            <input type="text" id="p-name" placeholder="닉네임">
+            <input type="text" id="p-status" placeholder="상태 메시지">
+            <textarea id="p-bio" rows="3" placeholder="자기소개"></textarea>
+            <div style="display:flex; gap:10px;">
+                <button onclick="saveProfile()" style="flex:1; background:var(--kakao-yellow); border:none; padding:12px; border-radius:5px;">저장</button>
+                <button onclick="closeModal('edit-modal')" style="flex:1; background:#eee; border:none; padding:12px; border-radius:5px;">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let myId = '', myData = null, curTarget = null, curTab = 'friends';
+        let unread = { global: 0, privateUsers: new Set() };
+
+        function toggleAuth(isReg) {
+            document.getElementById('login-form').style.display = isReg ? 'none' : 'block';
+            document.getElementById('reg-form').style.display = isReg ? 'block' : 'none';
+        }
+
+        async function handleAuth(type) {
+            const id = document.getElementById(type === 'login' ? 'auth-id' : 'reg-id').value;
+            const pw = document.getElementById(type === 'login' ? 'auth-pw' : 'reg-pw').value;
+            if(!id || !pw) return alert('입력해주세요!');
+            const r = await fetch(`/api/${type}`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({id, password: pw})
+            });
+            const d = await r.json();
+            if(d.success) {
+                if(type === 'login') {
+                    myId = id; myData = d.user;
+                    document.getElementById('auth-screen').style.display = 'none';
+                    startApp();
+                } else { alert('가입 성공!'); toggleAuth(false); }
+            } else alert(d.msg);
+        }
+
+        function startApp() {
+            socket.emit('join', myId);
+            setInterval(() => socket.emit('heartbeat'), 10000);
+            switchTab('friends');
+        }
+
+        function updateBadges() {
+            const gb = document.getElementById('badge-global');
+            gb.innerText = unread.global;
+            gb.style.display = unread.global > 0 ? 'block' : 'none';
+
+            const fb = document.getElementById('badge-friends');
+            const pCount = unread.privateUsers.size;
+            fb.innerText = pCount;
+            fb.style.display = pCount > 0 ? 'block' : 'none';
+        }
+
+        function switchTab(name) {
+            curTab = name;
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById(`tab-${name}`).classList.add('active');
+            const idx = name === 'friends' ? 0 : 1;
+            document.querySelectorAll('.nav-item')[idx].classList.add('active');
+            if(name === 'global') { unread.global = 0; updateBadges(); }
+        }
+
+        function openOverlay(id) { document.getElementById(id).classList.add('active'); }
+        function closeOverlay(id) { 
+            document.getElementById(id).classList.remove('active'); 
+            if(id === 'view-private') { unread.privateUsers.delete(curTarget.id); updateBadges(); }
+            curTarget = null; 
+        }
+
+        function sendMsg(type) {
+            const input = document.getElementById(type === 'global' ? 'global-input' : 'priv-input');
+            const text = input.value.trim();
+            if(!text) return;
+            if(type === 'global') socket.emit('send_global', { text });
+            else socket.emit('send_private', { to: curTarget.id, text });
+            input.value = '';
+        }
+
+        socket.on('new_global', m => {
+            appendMsg('global-win', m);
+            if(curTab !== 'global') { unread.global++; updateBadges(); }
+        });
+
+        socket.on('init_private', msgs => {
+            const win = document.getElementById('priv-win'); win.innerHTML = '';
+            msgs.forEach(m => appendMsg('priv-win', m));
+        });
+
+        socket.on('new_private', m => appendMsg('priv-win', m));
+
+        socket.on('private_notif', n => {
+            if(!curTarget || curTarget.id !== n.from) {
+                unread.privateUsers.add(n.from);
+                updateBadges();
+            }
+        });
+
+        function appendMsg(winId, m) {
+            const win = document.getElementById(winId);
+            const isMine = (m.user === myId || m.from === myId);
+            const row = document.createElement('div');
+            row.className = `msg-row ${isMine ? 'mine' : 'others'}`;
+            row.innerHTML = `
+                ${!isMine && winId === 'global-win' ? `<div class="msg-sender">${m.name}</div>` : ''}
+                <div class="msg-bubble">${m.text}</div>
+                <div class="msg-time">${m.time}</div>
+            `;
+            win.appendChild(row);
+            win.scrollTop = win.scrollHeight;
+        }
+
+        socket.on('user_list', (users) => {
+            const list = document.getElementById('friend-list');
+            list.innerHTML = '';
+            users.forEach(u => {
+                if(u.id === myId) { myData = u; return; }
+                const div = document.createElement('div');
+                div.className = 'user-item';
+                div.innerHTML = `
+                    <div class="avatar-wrap" onclick="showProfile('${u.id}', event)">
+                        <img src="${u.profilePic}" class="item-avatar">
+                        <div class="status-dot ${u.active ? 'online' : ''}"></div>
+                    </div>
+                    <div class="user-info" onclick="startPrivateChat('${u.id}')">
+                        <strong>${u.name}</strong>
+                        <small>${u.statusMsg}</small>
+                    </div>
+                `;
+                list.appendChild(div);
+                if(curTarget && curTarget.id === u.id) refreshProfile(u);
+            });
+        });
+
+        window.showProfile = function(uid, e) {
+            if(e) e.stopPropagation();
+            socket.on('user_list', function finder(users) {
+                const u = users.find(user => user.id === uid);
+                if(u) { curTarget = u; refreshProfile(u); openOverlay('view-profile'); }
+                socket.off('user_list', finder);
+            });
+            socket.emit('heartbeat');
+        };
+
+        function refreshProfile(u) {
+            document.getElementById('v-pic').src = u.profilePic;
+            document.getElementById('v-name').innerText = u.name;
+            document.getElementById('v-status').innerText = u.statusMsg;
+            document.getElementById('v-bio').innerText = u.bio;
+            document.getElementById('v-likes').innerText = u.likes.length;
+            document.getElementById('v-comm-count').innerText = u.comments.length;
+            const cList = document.getElementById('v-comments');
+            cList.innerHTML = '';
+            u.comments.forEach(c => {
+                const div = document.createElement('div');
+                div.className = 'comment-item';
+                div.innerHTML = `<strong>${c.authorName}:</strong> ${c.text}`;
+                cList.appendChild(div);
+            });
+        }
+
+        function startPrivateChat(uid) {
+            socket.on('user_list', function finder(users) {
+                const u = users.find(user => user.id === uid);
+                if(u) {
+                    curTarget = u;
+                    document.getElementById('priv-title').innerText = u.name;
+                    socket.emit('join_private', uid);
+                    openOverlay('view-private');
+                }
+                socket.off('user_list', finder);
+            });
+            socket.emit('heartbeat');
+        }
+
+        function likeProfile() { if(curTarget) socket.emit('like_profile', curTarget.id); }
+        function addComment() {
+            const t = document.getElementById('comm-input').value;
+            if(!t || !curTarget) return;
+            socket.emit('add_comment', { targetId: curTarget.id, text: t });
+            document.getElementById('comm-input').value = '';
+        }
+
+        function openEdit() {
+            document.getElementById('p-name').value = myData.name;
+            document.getElementById('p-status').value = myData.statusMsg;
+            document.getElementById('p-bio').value = myData.bio;
+            document.getElementById('edit-modal').style.display = 'flex';
+        }
+        function saveProfile() {
+            const fd = new FormData();
+            fd.append('id', myId);
+            fd.append('name', document.getElementById('p-name').value);
+            fd.append('statusMsg', document.getElementById('p-status').value);
+            fd.append('bio', document.getElementById('p-bio').value);
+            const pic = document.getElementById('p-pic').files[0];
+            if(pic) fd.append('profile_pic', pic);
+            fetch('/api/profile', { method: 'POST', body: fd }).then(() => {
+                closeModal('edit-modal'); socket.emit('join', myId);
+            });
+        }
+        function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+    </script>
+</body>
+</html>
