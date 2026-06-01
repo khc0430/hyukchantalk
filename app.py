@@ -1,3 +1,6 @@
+import eventlet
+eventlet.monkey_patch()
+
 import os
 import time
 from flask import Flask, render_template, request, session, redirect, url_for, jsonify
@@ -7,14 +10,10 @@ from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 
-# 몽키 패치 (서버 안정성용)
-import eventlet
-eventlet.monkey_patch()
-
 app = Flask(__name__)
 app.secret_key = 'hyukchan_secret_key'
 
-# 데이터베이스 경로를 절대 경로로 설정 (에러 방지 핵심!)
+# 데이터베이스 경로 설정
 basedir = os.path.abspath(os.path.dirname(__file__))
 db_uri = os.environ.get('DATABASE_URL')
 if db_uri and db_uri.startswith("postgres://"):
@@ -113,6 +112,9 @@ def update_profile():
 
 @app.route('/api/status')
 def status_api():
+    # 이 API를 호출할 때마다 현재 사용자의 활동 시간을 갱신 (10초마다 자동 실행됨)
+    update_activity()
+
     now = time.time()
     all_users = User.query.all()
     my_id = session.get('user_id')
